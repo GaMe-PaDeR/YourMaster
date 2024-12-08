@@ -26,7 +26,7 @@ const LoginScreen = ({ }) => {
       };
 
       // Запрос на сервер
-      const response = await axios.post('http://192.168.1.8:8080/api/v1/auth/sign-in', signInDto, {
+      const response = await axios.post('http://192.168.1.2:8080/api/v1/auth/sign-in', signInDto, { //192.168.1.8
         headers: {
           'Content-Type': 'application/json',
         },
@@ -41,13 +41,11 @@ const LoginScreen = ({ }) => {
       }
     } catch (error) {
       console.error("Неверный логин или пароль");
-      // let toast = Toast.show('Неверный логин или пароль' + error, {
-      //   duration: Toast.durations.LONG,
-      // });
-
-      // setTimeout(function hideToast() {
-      //   Toast.hide(toast);
-      // }, 3000);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error("Ошибка при авторизации: ", error.response.data.message);
+      } else {
+        console.error("Произошла неизвестная ошибка", error);
+      }
     }
   };
 

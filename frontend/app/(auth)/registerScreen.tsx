@@ -26,7 +26,7 @@ const RegisterScreen = () => {
           firstName,
           lastName,
           phoneNumber,
-          role: role === 'master' ? 'ROLE_ADMIN' : 'ROLE_USER', // Выбор роли
+          role: role === 'master' ? 'ROLE_MASTER' : 'ROLE_CLIENT', // Выбор роли
         };
   
         // const formData = new FormData();
@@ -34,7 +34,7 @@ const RegisterScreen = () => {
         // formData.append('userData', new Blob(["userData:" + JSON.stringify(userData)], { type: "application/json" }));
         console.log(userData);
 
-        const response = await axios.post('http://192.168.1.8:8080/api/v1/auth/sign-up', userData);
+        const response = await axios.post('http://192.168.1.2:8080/api/v1/auth/sign-up', userData);
   
         if (response.status === 200) {
           Alert.alert('Успех', 'Регистрация прошла успешно');
