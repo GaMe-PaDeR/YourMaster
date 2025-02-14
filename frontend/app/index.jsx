@@ -33,7 +33,8 @@ const OnboardingSlider = ({ }) => {
   ];
 
   const handleScroll = (event) => {
-    const slideIndex = Math.floor(event.nativeEvent.contentOffset.x / width) + 1;
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const slideIndex = Math.round(offsetX / width);
     setActiveSlide(slideIndex);
   };
 
@@ -41,7 +42,7 @@ const OnboardingSlider = ({ }) => {
     if (activeSlide < slides.length - 1) {
       scrollViewRef.current.scrollTo({ x: (activeSlide + 1) * width, animated: true });
     } else {
-      router.replace('./(auth)/loginScreen'); // Переход на экран входа после последнего слайда
+      router.replace('./(auth)/loginScreen');
     }
   };
   if (slides) {

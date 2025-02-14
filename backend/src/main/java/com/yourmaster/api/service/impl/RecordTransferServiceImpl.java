@@ -40,7 +40,7 @@ public class RecordTransferServiceImpl implements RecordTransferService {
 
     @Override
     public Transfer createTransferRequest(UUID recordId, UUID userId, Record newRecord) {
-        Record oldRecord = recordService.getRecord(recordId);
+        Record oldRecord = recordService.getRecordById(recordId);
         User sender = userService.getUserById(userId);
         User recipient;
         if (sender.getRole().toString().equals("ROLE_CLIENT")) {

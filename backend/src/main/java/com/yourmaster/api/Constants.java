@@ -6,6 +6,7 @@ public class Constants {
     public static final String USER_RESOURCE_NAME = "User";
     public static final String POST_RESOURCE_NAME = "Post";
     public static final String CHAT_RESOURCE_NAME = "Chat";
+    public static final String SERVICE_RESOURCE_NAME = "Service";
     public static final String MESSAGE_RESOURCE_NAME = "Message";
     public static final String INVITE_RESOURCE_NAME = "Invite";
 

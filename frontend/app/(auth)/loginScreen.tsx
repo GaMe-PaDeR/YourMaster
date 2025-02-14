@@ -1,20 +1,29 @@
-import React, { useState } from 'react';
-import { SafeAreaView, TextInput, Button, Text, View, TouchableOpacity, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import Toast from 'react-native-root-toast';
+import React, { useState } from "react";
+import {
+  SafeAreaView,
+  TextInput,
+  Button,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { API_ADDRESS } from "@/config";
+import tokenService from "../services/tokenService";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react-native";
 
-import { router } from 'expo-router';
-import axios from 'axios';
+import { router } from "expo-router";
+import axios from "axios";
 
-const LoginScreen = ({ }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
+const LoginScreen = ({}) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isPasswordVisible, setPasswordVisible] = useState(false);
 
   const handleLogin = async () => {
     // Проверка обязательных полей
     if (!email || !password) {
-      Alert.alert('Ошибка', 'Пожалуйста, введите email и пароль.');
+      Alert.alert("Ошибка", "Пожалуйста, введите email и пароль.");
       return;
     }
 
@@ -25,24 +34,59 @@ const LoginScreen = ({ }) => {
         password,
       };
 
+      // console.log(signInDto);
+
       // Запрос на сервер
-      const response = await axios.post('http://192.168.1.2:8080/api/v1/auth/sign-in', signInDto, { //192.168.1.8
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await axios.post(
+        `${API_ADDRESS}auth/sign-in`,
+        signInDto,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       // Проверка статуса и вывод сообщения об успешном входе
       if (response.status === 200) {
-        Alert.alert('Успех', 'Вход выполнен успешно');
-        console.log(response);
+        response.data.accessToken
+          ? await tokenService.saveAccessToken(response.data.accessToken)
+          : null;
+        response.data.refreshToken
+          ? await tokenService.saveRefreshToken(response.data.refreshToken)
+          : null;
+
+        // Получение данных о текущем пользователе
+        const userResponse = await axios.get(
+          `${API_ADDRESS}users/currentUser`,
+          {
+            headers: {
+              Authorization: `Bearer ${response.data.accessToken}`,
+            },
+          }
+        );
+
+        // Сохранение роли пользователя
+        if (userResponse.status === 200) {
+          await tokenService.saveRole(userResponse.data.role);
+        } else {
+          console.error(
+            "Ошибка при получении данных о пользователе",
+            userResponse.data.message
+          );
+        }
+
         // Перенаправление пользователя на основной экран приложения
         router.navigate("/(tabs)/home");
       }
     } catch (error) {
-      console.error("Неверный логин или пароль");
       if (axios.isAxiosError(error) && error.response) {
-        console.error("Ошибка при авторизации: ", error.response.data.message);
+        const { status, data } = error.response;
+        if (status === 401) {
+          Alert.alert("Ошибка авторизации", data.message);
+        } else {
+          console.error("Ошибка при авторизации: ", data.message);
+        }
       } else {
         console.error("Произошла неизвестная ошибка", error);
       }
@@ -52,31 +96,61 @@ const LoginScreen = ({ }) => {
   return (
     <SafeAreaView className="flex-1 justify-center px-6 bg-white">
       <Text className="text-3xl font-semibold mb-2">Приветствуем,</Text>
-      <Text className="text-gray-500 mb-6">Рады видеть Вас снова! Пожалуйста, авторизуйтесь.</Text>
+      <Text className="text-gray-500 mb-6">
+        Рады видеть Вас снова! Пожалуйста, авторизуйтесь.
+      </Text>
 
-      <TextInput
-        className="w-full h-12 border border-gray-300 rounded-lg px-4 mb-4"
-        placeholder="Электронная почта"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
+      <View className="w-full h-12 flex-row items-center border border-gray-300 rounded-lg px-4 mb-4">
+        <Mail size={20} color="gray" className="mr-2" />
+        <TextInput
+          className="flex-1 h-full"
+          placeholder="Электронная почта"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+      </View>
+      {/* <TextInput
         className="w-full h-12 border border-gray-300 rounded-lg px-4 mb-4"
         placeholder="Пароль"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
         autoCapitalize="none"
-      />
+      /> */}
+      <View className="w-full h-12 flex-row items-center border border-gray-300 rounded-lg px-4 mb-4">
+        <Lock size={20} color="gray" className="mr-2" />
+        <TextInput
+          className="flex-1 h-full"
+          placeholder="Пароль"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!isPasswordVisible}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity
+          onPress={() => setPasswordVisible(!isPasswordVisible)}
+          className="pl-2"
+        >
+          {isPasswordVisible ? (
+            <EyeOff size={20} color="gray" />
+          ) : (
+            <Eye size={20} color="gray" />
+          )}
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity onPress={() => router.navigate("/(auth)/forgotPasswordScreen")}>
+      <TouchableOpacity
+        onPress={() => router.navigate("/(auth)/forgotPasswordScreen")}
+      >
         <Text className="text-right text-blue-600 mb-6">Забыли пароль?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity className="w-full h-12 bg-teal-600 rounded-lg justify-center items-center mb-4"
-        onPress= {() => handleLogin() }
+      <TouchableOpacity
+        className="w-full h-12 bg-teal-600 rounded-lg justify-center items-center mb-4"
+        onPress={() => handleLogin()}
+        // onPress={() => router.navigate("/(tabs)/home")}
       >
         <Text className="text-white text-lg">Войти</Text>
       </TouchableOpacity>
@@ -87,8 +161,12 @@ const LoginScreen = ({ }) => {
         <Text className="text-gray-700">Войти с помощью VK</Text>
       </TouchableOpacity> */}
 
-      <TouchableOpacity onPress={() => router.navigate('/(auth)/registerScreen')}>
-        <Text className="text-center text-gray-700">Нет аккаунта? <Text className="text-blue-600">Создать</Text></Text>
+      <TouchableOpacity
+        onPress={() => router.navigate("/(auth)/registerScreen")}
+      >
+        <Text className="text-center text-gray-700">
+          Нет аккаунта? <Text className="text-blue-600">Создать</Text>
+        </Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

@@ -2,6 +2,7 @@
   "expo": {
     "name": "YourMaster",
     "slug": "YourMaster",
+    "scheme": "com.YourMaster.YourMaster",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -32,6 +33,15 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#ffffff",
+      "translucent": true,
+      "barStyle": "dark-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#ffffff",
+      "barStyle": "dark-content"
     }
   }
 }

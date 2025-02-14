@@ -1,111 +1,142 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
-import { router } from 'expo-router';
+import React from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+} from "react-native";
+import { useRouter } from "expo-router";
+import axios from "axios";
+import { useState, useEffect } from "react";
+import User from "../entities/User";
+import tokenService from "../services/tokenService";
+import { API_ADDRESS } from "@/config";
+
+// const ProfileScreen = () => {
 
 const ProfileScreen = () => {
-  const user = {
-    name: 'Анастастия Сергеева',
-    email: 'sergeevaNastya@ya.ru',
-    avatar: 'https://via.placeholder.com/100',
-  };
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+
+  // useEffect(() => {
+  //   console.log(user);
+  // }, [user]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await tokenService.makeAuthenticatedRequest(
+          {
+            method: "get",
+            url: `${API_ADDRESS}users/currentUser`,
+          },
+          () => router.push("/(auth)/loginScreen")
+        );
+        console.log(response.data);
+        setUser(User.fromJSON(response.data));
+      } catch (error) {
+        console.error("Failed to fetch user", error);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   const handleLogout = () => {
-    Alert.alert('Выход', 'Вы уверены, что хотите выйти из аккаунта?', [
-      { text: 'Отмена', style: 'cancel' },
-      { text: 'Выйти', onPress: () => router.navigate('../(auth)/loginScreen') },
+    Alert.alert("Выход", "Вы уверены, что хотите выйти из аккаунта?", [
+      { text: "Отмена", style: "cancel" },
+      {
+        text: "Выйти",
+        onPress: () => router.navigate("../(auth)/loginScreen"),
+      },
     ]);
   };
 
   const handleEditProfile = () => {
-    router.push('../(tabs)/editProfile');
+    router.push("../(screens)/editProfile");
   };
 
+  if (!user) {
+    return <Text></Text>;
+  }
+
   return (
-    <View style={styles.container}>
-      <View style={styles.profileInfo}>
-        <Image source={{ uri: user.avatar }} style={styles.avatar} />
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.email}>{user.email}</Text>
-        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-          <Text style={styles.editButtonText}>Редактировать профиль</Text>
+    <View className="flex-1 p-4 bg-[#f9f9f9]">
+      <View className="items-center mb-6">
+        <Image
+          source={{
+            uri: user.avatarUrl
+              ? user.avatarUrl
+              : "https://via.placeholder.com/100",
+          }}
+          className="w-24 h-24 rounded-full mb-4"
+        />
+        <Text className="text-lg font-bold">
+          {user.firstName} {user.lastName}
+        </Text>
+        <Text className="text-base text-gray-600">{user.email}</Text>
+        <Text className="text-base text-gray-600">
+          {user.role === "ROLE_MASTER" ? "Мастер" : "Клиент"}
+        </Text>
+        {user.city && user.country && (
+          <Text className="text-base text-gray-600">
+            {user.city}, {user.country}
+          </Text>
+        )}
+        {user.birthday && (
+          <Text className="text-base text-gray-600">
+            {new Date(user.birthday).toLocaleDateString()}
+          </Text>
+        )}
+        {user.gender === "male" || user.gender === "female" ? (
+          <Text className="text-base text-gray-600">
+            {user.gender === "male"
+              ? "Мужчина"
+              : user.gender === "female"
+              ? "Женщина"
+              : ""}
+          </Text>
+        ) : null}
+        {user.description && (
+          <Text className="text-base text-gray-600">{user.description}</Text>
+        )}
+
+        <TouchableOpacity
+          className="mt-4 px-4 py-2 bg-blue-500 rounded-lg"
+          onPress={handleEditProfile}
+        >
+          <Text className="text-white text-base">Редактировать профиль</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.options}>
-        <TouchableOpacity style={styles.optionItem} onPress={() => router.push('/AppointmentsScreen')}>
-          <Text style={styles.optionText}>История записей</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.optionItem} onPress={() => router.navigate('/(tabs)/home')}>
-          <Text style={styles.optionText}>Настройки</Text>
+      <View className="mb-3">
+        <TouchableOpacity
+          className="p-4 bg-white rounded-lg shadow"
+          onPress={() => router.push("/RecordsScreen")}
+        >
+          <Text className="text-base text-black">История записей</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+      <View className="mb-3">
+        <TouchableOpacity
+          className="p-4 bg-white rounded-lg shadow"
+          onPress={() => router.push("../(screens)/settingsScreen")}
+        >
+          <Text className="text-base text-black">Настройки</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        className="p-4 bg-white rounded-lg shadow"
+        onPress={handleLogout}
+      >
+        <Text className="text-red-500 text-base">Выйти</Text>
       </TouchableOpacity>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  profileInfo: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  email: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16,
-  },
-  editButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#007bff',
-    borderRadius: 8,
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  options: {
-    marginBottom: 24,
-  },
-  optionItem: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  logoutButton: {
-    marginTop: 'auto',
-    padding: 16,
-    backgroundColor: '#ff3b30',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-});
 
 export default ProfileScreen;

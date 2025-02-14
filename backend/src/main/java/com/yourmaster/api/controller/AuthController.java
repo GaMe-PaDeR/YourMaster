@@ -9,6 +9,7 @@ import com.yourmaster.api.dto.response.LogoutResponse;
 import com.yourmaster.api.security.AuthenticationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -33,11 +35,13 @@ public class AuthController {
 //                    name = Constants.FILE_REQUEST_PART_ID
 //            ) MultipartFile file
     ) throws IOException {
+        log.debug("signUp[1]: UserDto: {}", userDto);
         return ResponseEntity.ok(authenticationService.signUp(userDto, null));
     }
 
     @PostMapping("/sign-in")
     public ResponseEntity<AuthResponse> signIn(@RequestBody @Valid SignInDto signInDto) {
+        log.debug("signIn[1]: UserDto: {}", signInDto);
         return ResponseEntity.ok(authenticationService.signIn(signInDto));
     }
 
