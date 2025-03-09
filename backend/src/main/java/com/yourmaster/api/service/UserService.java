@@ -40,4 +40,10 @@ public interface UserService {
     List<User> searchByFullName(String name);
 
     User toggleUserOnline();
+
+    void updateUserOnlineStatus(UUID userId, boolean isOnline);
+
+    User getInterlocutorInfo(UUID chatId, UUID currentUserId);
+
+    User saveUser(User user);
 }

@@ -14,11 +14,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Embeddable
 @NoArgsConstructor
@@ -27,9 +29,8 @@ import java.util.HashMap;
 @Setter
 public class Availability {
     @Column(name = "date")
-    @JsonFormat(pattern = Constants.LOCAL_DATETIME_FORMAT)
-    @JsonSerialize(using = LocalDateTimeSerializer.class)
-    private LocalDateTime date;
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate date;
 
     @Getter
     @Column(name = "is_available")
@@ -61,6 +62,21 @@ public class Availability {
             this.timeSlots = mapper.writeValueAsString(slots);
         } catch (JsonProcessingException e) {
             this.timeSlots = "{}";
+        }
+    }
+
+    // Добавим метод для преобразования в JSON
+    public String getTimeSlots() {
+        try {
+            // Преобразуем Map в массив выбранных слотов
+            List<String> selectedSlots = getTimeSlotsMap().entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+            
+            return new ObjectMapper().writeValueAsString(selectedSlots);
+        } catch (JsonProcessingException e) {
+            return "{}";
         }
     }
 }

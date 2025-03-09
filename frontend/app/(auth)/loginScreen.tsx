@@ -9,16 +9,18 @@ import {
   Alert,
 } from "react-native";
 import { API_ADDRESS } from "@/config";
-import tokenService from "../services/tokenService";
+import tokenService from "@/services/tokenService";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react-native";
-
 import { router } from "expo-router";
+import authProvider from "@/services/authProvider";
+import User from "@/entities/User";
 import axios from "axios";
 
 const LoginScreen = ({}) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setPasswordVisible] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   const handleLogin = async () => {
     // Проверка обязательных полей
@@ -34,50 +36,68 @@ const LoginScreen = ({}) => {
         password,
       };
 
-      // console.log(signInDto);
-
       // Запрос на сервер
-      const response = await axios.post(
+      const response = await authProvider.post(
         `${API_ADDRESS}auth/sign-in`,
-        signInDto,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        signInDto
       );
 
       // Проверка статуса и вывод сообщения об успешном входе
       if (response.status === 200) {
-        response.data.accessToken
-          ? await tokenService.saveAccessToken(response.data.accessToken)
-          : null;
-        response.data.refreshToken
-          ? await tokenService.saveRefreshToken(response.data.refreshToken)
-          : null;
+        (response.data as { accessToken: string }).accessToken &&
+          (await tokenService.saveAccessToken(
+            (response.data as { accessToken: string }).accessToken
+          ));
+        (response.data as { refreshToken: string }).refreshToken &&
+          (await tokenService.saveRefreshToken(
+            (response.data as { refreshToken: string }).refreshToken
+          ));
 
         // Получение данных о текущем пользователе
-        const userResponse = await axios.get(
-          `${API_ADDRESS}users/currentUser`,
-          {
-            headers: {
-              Authorization: `Bearer ${response.data.accessToken}`,
-            },
-          }
-        );
+        const userResponse = await authProvider.get<{
+          id: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+          role: string;
+          phoneNumber?: string;
+          birthday?: string;
+          city?: string;
+          country?: string;
+          gender?: string;
+          description?: string;
+          avatarUrl?: string;
+        }>(`${API_ADDRESS}users/currentUser`);
 
         // Сохранение роли пользователя
         if (userResponse.status === 200) {
+          const userData = User.fromJSON({
+            id: userResponse.data.id,
+            email: userResponse.data.email,
+            firstName: userResponse.data.firstName,
+            lastName: userResponse.data.lastName,
+            phoneNumber: userResponse.data.phoneNumber || "",
+            birthday: userResponse.data.birthday || "",
+            city: userResponse.data.city || "",
+            country: userResponse.data.country || "",
+            gender: userResponse.data.gender || "",
+            role: userResponse.data.role,
+            description: userResponse.data.description || "",
+            avatarUrl: userResponse.data.avatarUrl || "",
+          });
+
+          await tokenService.saveUser(userData);
           await tokenService.saveRole(userResponse.data.role);
+          setUser(userData);
+
+          router.navigate("../(tabs)/home");
         } else {
           console.error(
             "Ошибка при получении данных о пользователе",
-            userResponse.data.message
+            (userResponse.data as { message?: string }).message ||
+              "Неизвестная ошибка"
           );
         }
-
-        // Перенаправление пользователя на основной экран приложения
-        router.navigate("/(tabs)/home");
       }
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -142,7 +162,7 @@ const LoginScreen = ({}) => {
       </View>
 
       <TouchableOpacity
-        onPress={() => router.navigate("/(auth)/forgotPasswordScreen")}
+        onPress={() => router.navigate("../(auth)/forgotPasswordScreen")}
       >
         <Text className="text-right text-blue-600 mb-6">Забыли пароль?</Text>
       </TouchableOpacity>
@@ -162,7 +182,7 @@ const LoginScreen = ({}) => {
       </TouchableOpacity> */}
 
       <TouchableOpacity
-        onPress={() => router.navigate("/(auth)/registerScreen")}
+        onPress={() => router.navigate("../(auth)/registerScreen")}
       >
         <Text className="text-center text-gray-700">
           Нет аккаунта? <Text className="text-blue-600">Создать</Text>

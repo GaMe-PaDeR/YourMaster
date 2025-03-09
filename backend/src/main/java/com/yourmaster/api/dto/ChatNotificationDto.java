@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.lang.Nullable;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -22,5 +23,11 @@ public class ChatNotificationDto {
 
     private UUID chatId;
 
+    private UUID recipientId;
+
     private String content;
+
+    private LocalDateTime timestamp;
+
+    private String message;
 }

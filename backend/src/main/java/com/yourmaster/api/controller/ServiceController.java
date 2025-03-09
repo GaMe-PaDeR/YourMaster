@@ -1,8 +1,10 @@
 package com.yourmaster.api.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yourmaster.api.dto.ServicesDto;
+import com.yourmaster.api.dto.response.TimeSlotResponse;
 import com.yourmaster.api.enums.Category;
 import com.yourmaster.api.enums.Role;
 import com.yourmaster.api.exception.ApiException;
@@ -14,11 +16,15 @@ import org.hibernate.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -69,10 +75,29 @@ public class ServiceController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Service> updateService(@PathVariable UUID id, @RequestBody Service service,
-                                                 @RequestPart(required = false) List<MultipartFile> newFiles,
-                                                 @RequestParam(required = false) List<String> replaceFilesUrls) {
-        Service updatedService = serviceService.updateService(id, service, newFiles, replaceFilesUrls);
+    public ResponseEntity<Service> updateService(
+        @PathVariable UUID id,
+        @RequestParam("serviceJson") String serviceJson,
+        @RequestParam(value = "newFiles", required = false) List<MultipartFile> newFiles,
+        @RequestParam(value = "replaceFilesUrls", required = false) String replaceFilesUrlsJson) throws JsonProcessingException {
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        Service service = objectMapper.readValue(serviceJson, Service.class);
+        
+        List<String> replaceFilesUrls = null;
+        if (replaceFilesUrlsJson != null) {
+            replaceFilesUrls = objectMapper.readValue(
+                replaceFilesUrlsJson, 
+                new TypeReference<List<String>>(){}
+            );
+        }
+
+        Service updatedService = serviceService.updateService(
+            id, 
+            service, 
+            newFiles, 
+            replaceFilesUrls
+        );
         return ResponseEntity.ok(updatedService);
     }
 
@@ -84,8 +109,8 @@ public class ServiceController {
 
 
     @GetMapping
-    public ResponseEntity<List<Service>> getAllServices(@RequestParam(defaultValue = "10") int limit) {
-        List<Service> services = serviceService.getAllServices(limit);
+    public ResponseEntity<List<Service>> getAllServices() {
+        List<Service> services = serviceService.getAllServices();
         return ResponseEntity.ok(services);
     }
 
@@ -98,6 +123,27 @@ public class ServiceController {
     @GetMapping("/category/{category}")
     public ResponseEntity<List<Service>> getServicesByCategory(@RequestParam Category category) {
         List<Service> services = serviceService.getServicesByCategory(category);
+        return ResponseEntity.ok(services);
+    }
+
+    @GetMapping("/{id}/available-slots")
+    public ResponseEntity<List<TimeSlotResponse>> getAvailableSlots(
+        @PathVariable UUID id,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        
+        List<TimeSlotResponse> slots = serviceService.getAvailableTimeSlots(id, date);
+        return ResponseEntity.ok(slots);
+    }
+
+    @GetMapping("/{id}/available-dates")
+    public ResponseEntity<List<String>> getAvailableDates(@PathVariable UUID id) {
+        List<String> dates = serviceService.getAvailableDates(id);
+        return ResponseEntity.ok(dates);
+    }
+
+    @GetMapping("/master/{masterId}")
+    public ResponseEntity<List<Service>> getServicesByMasterId(@PathVariable UUID masterId) {
+        List<Service> services = serviceService.getServicesByMasterId(masterId);
         return ResponseEntity.ok(services);
     }
 }

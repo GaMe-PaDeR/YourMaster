@@ -9,15 +9,14 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.yourmaster.api.deserializer.ServiceDeserializer;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -76,14 +75,33 @@ public class Service {
     @Column(name = "time_slot")
     private List<String> standardTimeSlots;
 
+    @Setter
+    @Getter
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate date;
+
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
+
     public List<LocalDateTime> getAvailableDates() {
         List<LocalDateTime> availableDates = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (Availability availability : this.getAvailability()) {
-            if (Boolean.TRUE.equals(availability.getIsAvailable()) && availability.getDate().isAfter(now)) {
-                availableDates.add(availability.getDate());
+            if (Boolean.TRUE.equals(availability.getIsAvailable())) {
+                availability.getTimeSlotsMap().forEach((time, isAvailable) -> {
+                    if (isAvailable) {
+                        LocalDateTime dateTime = LocalDateTime.of(
+                            availability.getDate(), 
+                            LocalTime.parse(time)
+                        );
+                        if (dateTime.isAfter(now)) {
+                            availableDates.add(dateTime);
+                        }
+                    }
+                });
             }
         }
         return availableDates;
     }
+
 }

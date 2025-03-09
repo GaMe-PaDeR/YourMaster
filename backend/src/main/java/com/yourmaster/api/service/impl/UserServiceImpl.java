@@ -4,8 +4,10 @@ import com.yourmaster.api.Constants;
 import com.yourmaster.api.dto.UserDto;
 import com.yourmaster.api.enums.Role;
 import com.yourmaster.api.exception.ResourceNotFoundException;
+import com.yourmaster.api.model.Chat;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.repository.UserRepository;
+import com.yourmaster.api.service.ChatService;
 import com.yourmaster.api.service.FileService;
 import com.yourmaster.api.service.UserService;
 import com.yourmaster.api.util.mappers.UserMapper;
@@ -18,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.context.annotation.Lazy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,6 +44,10 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    @Lazy
+    private ChatService chatService;
 
     @Value("${project.avatar}")
     private String avatarFolderName;
@@ -66,36 +73,6 @@ public class UserServiceImpl implements UserService {
 
         return userRepository.save(user);
     }
-// Заготовки из другого проекта для переделки
-//    @Override
-//    public User addFriend(UUID friendId) throws IOException {
-//        User user = getCurrentUser();
-//        User newFriend = getUserById(friendId);
-//
-//        user.getFriends().add(newFriend);
-//        log.info("addFriend[1]: Friend added successfully ID {}", friendId);
-//
-//        newFriend.getFriends().add(user);
-//        log.info("addFriend[2]: Friends list {}", user.getFriends());
-//
-//        userRepository.save(user);
-//        userRepository.save(newFriend);
-//        return user;
-//    }
-
-//    @Override
-//    public User deleteFriend(UUID friendId) throws IOException {
-//        User user = getCurrentUser();
-//        User delFriend = userRepository.findById(friendId)
-//                .orElseThrow(() -> new ResourceNotFoundException(
-//                        Constants.USER_RESOURCE_NAME, Constants.ID_FIELD, friendId)
-//                );
-//
-//        user.getFriends().remove(delFriend);
-//        log.info("deleteFriend[1]: Friend deleted successfully ID {}", friendId);
-//        updateUser(user.getId(), userMapper.userToUserDto(user));
-//        return user;
-//    }
 
     @Override
     public User getUserById(UUID id) {
@@ -218,6 +195,38 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(currentUser);
         return currentUser;
+    }
+
+    @Override
+    public void updateUserOnlineStatus(UUID userId, boolean isOnline) {
+        User user = getUserById(userId);
+        user.setOnline(isOnline);
+        if (!isOnline) {
+            user.setLastOnline(LocalDateTime.now());
+        }
+        userRepository.save(user);
+    }
+
+    @Override
+    public User getInterlocutorInfo(UUID chatId, UUID currentUserId) {
+        // Логика определения собеседника для конкретного чата
+        Chat chat = chatService.getChatById(chatId);
+        return chat.getParticipants().stream()
+            .filter(p -> !p.getId().equals(currentUserId))
+            .findFirst()
+            .map(user -> User.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .isOnline(user.isOnline())
+                .lastOnline(user.getLastOnline())
+                .build())
+            .orElseThrow(() -> new ResourceNotFoundException("User", "chat", chatId));
+    }
+
+    @Override
+    public User saveUser(User user) {
+        return userRepository.save(user);
     }
 }
 

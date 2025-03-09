@@ -1,5 +1,6 @@
 package com.yourmaster.api.service.impl;
 
+//import com.yourmaster.api.controller.NotificationController;
 import com.yourmaster.api.dto.RecordDto;
 import com.yourmaster.api.enums.RecordStatus;
 import com.yourmaster.api.exception.ApiException;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -34,39 +36,64 @@ public class RecordServiceImpl implements RecordService {
     @Autowired
     private ServiceService serviceService;
 
+//    @Autowired
+//    private NotificationController notificationController;
+
     @Override
     public Record createRecord(RecordDto recordDto) {
-        LocalDateTime scheduledDate = recordDto.getRecordDate();
+        try {
+            LocalDateTime scheduledDate = recordDto.getRecordDate();
 
-        if (scheduledDate.isBefore(LocalDateTime.now())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Нельзя создавать запись на прошедшее время");
+            if (scheduledDate.isBefore(LocalDateTime.now())) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Нельзя создавать запись на прошедшее время");
+            }
+
+            log.info("createRecord[1]: Getting current user");
+            User currentUser = userService.getCurrentUser();
+            log.info("createRecord[2]: Checking current user's role");
+            Record record = new Record();
+            if (Objects.equals(currentUser.getRole().toString(), "ROLE_CLIENT")) {
+                log.info("createRecord[3]: Setting client");
+                record.setClient(currentUser);
+                record.setMaster(userService.getUserById(recordDto.getRecipientId()));
+            } else {
+                log.info("createRecord[4]: Setting master");
+                record.setMaster(currentUser);
+                record.setClient(userService.getUserById(recordDto.getRecipientId()));
+            }
+            com.yourmaster.api.model.Service service = serviceService.getServiceById(recordDto.getServiceId());
+            // List<LocalDateTime> availableTime = service.getAvailableDates();
+
+            // if (!availableTime.contains(scheduledDate)) {
+            //     throw new ApiException(HttpStatus.FORBIDDEN, "Выбранное время недоступно");
+            // }
+
+            Availability selectedAvailability = service.getAvailability().stream()
+                .filter(av -> av.getDate().isEqual(scheduledDate.toLocalDate()))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "Выбранная дата недоступна"));
+
+            String timeKey = scheduledDate.toLocalTime().toString().substring(0, 5);
+            if (!selectedAvailability.getTimeSlotsMap().getOrDefault(timeKey, false)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Выбранный временной слот недоступен");
+            }
+
+            record.setRecordDate(scheduledDate);
+            record.setService(service);
+            record.setRecordStatus(RecordStatus.SCHEDULED);
+
+            log.info("createRecord[5]: Saving record");
+
+//            // Отправка уведомления мастеру
+//            notificationController.sendNewRecordNotification(record.getMaster().getId(), record);
+
+            return recordRepository.save(record);
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error creating record", e);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Ошибка при создании записи");
         }
-
-        log.info("createRecord[1]: Getting current user");
-        User currentUser = userService.getCurrentUser();
-        log.info("createRecord[2]: Checking current user's role");
-        Record record = new Record();
-        if (Objects.equals(currentUser.getRole().toString(), "ROLE_CLIENT")) {
-            log.info("createRecord[3]: Setting client");
-            record.setClient(currentUser);
-            record.setMaster(userService.getUserById(recordDto.getRecipientId()));
-        } else {
-            log.info("createRecord[4]: Setting master");
-            record.setMaster(currentUser);
-            record.setClient(userService.getUserById(recordDto.getRecipientId()));
-        }
-        com.yourmaster.api.model.Service service = serviceService.getServiceById(recordDto.getServiceId());
-        List<LocalDateTime> availableTime = service.getAvailableDates();
-
-        if (!availableTime.contains(scheduledDate)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Выбранное время недоступно");
-        }
-        record.setRecordDate(scheduledDate);
-        record.setService(service);
-        record.setRecordStatus(RecordStatus.SCHEDULED);
-
-        log.info("createRecord[5]: Saving record");
-        return recordRepository.save(record);
     }
 
     @Override
@@ -112,8 +139,52 @@ public class RecordServiceImpl implements RecordService {
 
     @Override
     public List<Record> getRecordsByUser() {
-        User currentUser = userService.getCurrentUser();
+        UUID currentUserId = userService.getCurrentUser().getId();
         log.info("getRecordsByUser[1]: Searching for records by user");
-        return recordRepository.findAllByClient_OrMaster_Id(currentUser, currentUser);
+        return recordRepository.findAllByClientId_OrMaster_Id(currentUserId, currentUserId);
     }
+
+    @Override
+    public Record updateRecordStatus(UUID recordId, String newStatus) {
+        log.info("updateRecordStatus[1]: Searching for record with id: {}", recordId);
+        Record record = recordRepository.findById(recordId)
+            .orElseThrow(() -> new ResourceNotFoundException("Record", "id", recordId));
+        
+        log.info("updateRecordStatus[2]: Updating status from {} to {}", record.getRecordStatus(), newStatus);
+        record.setRecordStatus(RecordStatus.valueOf(newStatus));
+        
+        log.info("updateRecordStatus[3]: Saving updated record");
+        return recordRepository.save(record);
+    }
+
+    @Override
+    public List<Record> getRecordsByDate(LocalDate date) {
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59);
+        return recordRepository.findByRecordDateBetween(startOfDay, endOfDay);
+    }
+
+    // @Override
+    // public Record rescheduleRecord(UUID recordId, LocalDateTime newDateTime) {
+    //     Record record = getRecordById(recordId);
+        
+    //     if (newDateTime.isBefore(LocalDateTime.now())) {
+    //         throw new ApiException(HttpStatus.BAD_REQUEST, "Невозможно перенести на прошедшее время");
+    //     }
+        
+    //     // Проверка доступности нового времени
+    //     com.yourmaster.api.model.Service service = record.getService();
+    //     Availability availability = service.getAvailability().stream()
+    //         .filter(av -> av.getDate().isEqual(newDateTime.toLocalDate()))
+    //         .findFirst()
+    //         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Дата недоступна"));
+        
+    //     String timeKey = newDateTime.toLocalTime().toString().substring(0, 5);
+    //     if (!availability.getTimeSlotsMap().getOrDefault(timeKey, false)) {
+    //         throw new ApiException(HttpStatus.BAD_REQUEST, "Временной слот недоступен");
+    //     }
+        
+    //     record.setRecordDate(newDateTime);
+    //     return recordRepository.save(record);
+    // }
 }

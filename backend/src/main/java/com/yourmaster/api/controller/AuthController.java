@@ -1,5 +1,6 @@
 package com.yourmaster.api.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yourmaster.api.Constants;
 import com.yourmaster.api.dto.SignInDto;
 import com.yourmaster.api.dto.UserDto;
@@ -27,16 +28,19 @@ public class AuthController {
 
     @PostMapping("/sign-up")
     public ResponseEntity<AuthResponse> signUp(
-//            Убрал лишнее потому что form-data с react передать не получалось корректно
-//            @RequestBody(name = Constants.USER_DTO_SIGN_UP_ID)
-            @RequestBody @Valid UserDto userDto
-//            @RequestPart(
-//                    required = false,
-//                    name = Constants.FILE_REQUEST_PART_ID
-//            ) MultipartFile file
+            @RequestPart(name = Constants.USER_DTO_SIGN_UP_ID) @Valid String userDataJson,
+            @RequestPart(
+                    required = false,
+                    name = Constants.FILE_REQUEST_PART_ID
+            ) MultipartFile file
     ) throws IOException {
-        log.debug("signUp[1]: UserDto: {}", userDto);
-        return ResponseEntity.ok(authenticationService.signUp(userDto, null));
+        log.debug("signUp[1]: UserDto JSON: {}", userDataJson);
+        log.debug("signUp[2]: File: {}", file != null ? file.getOriginalFilename() : "No file");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        UserDto userDto = objectMapper.readValue(userDataJson, UserDto.class);
+
+        return ResponseEntity.ok(authenticationService.signUp(userDto, file));
     }
 
     @PostMapping("/sign-in")

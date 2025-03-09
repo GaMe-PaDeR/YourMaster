@@ -4,9 +4,9 @@ import { useNavigation } from "@react-navigation/native";
 import AvailabilityCalendar from "../appComponents/AvailabilityCalendar";
 import { TouchableOpacity } from "react-native";
 import { router } from "expo-router";
-import tokenService from "../services/tokenService";
+import tokenService from "@/services/tokenService";
 import { useLocalSearchParams } from "expo-router";
-import Availability from "../entities/Availability";
+import Availability from "@/entities/Availability";
 
 export default function SelectDatesScreen() {
   const [selectedDates, setSelectedDates] = React.useState<Availability[]>([]);
@@ -45,7 +45,7 @@ export default function SelectDatesScreen() {
         className="mt-auto py-4 px-6 bg-blue-500 rounded-lg"
         onPress={() => {
           router.navigate({
-            pathname: "/(screens)/createNewService",
+            pathname: "../(screens)/createNewService",
             params: {
               dates: JSON.stringify(dates),
             },

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { Calendar } from "react-native-calendars";
-import Availability from "../entities/Availability";
-// import { DataProvider } from "../services/createContext";
-import tokenService from "../services/tokenService";
+import Availability from "@/entities/Availability";
+import tokenService from "@/services/tokenService";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TimeSlot } from "./StandardTimeSelector";
 import DayTimeSlotEditor from "./DayTimeSlotEditor";
@@ -13,15 +12,17 @@ interface AvailabilityCalendarProps {
   onAvailabilityChange: (availabilities: Availability[]) => void;
   initialAvailabilities?: Availability[];
   initialStep?: "slots" | "dates" | "edit";
+  standardTimeSlots?: TimeSlot[];
 }
 
 const AvailabilityCalendar = ({
   onAvailabilityChange,
   initialAvailabilities = [],
   initialStep = "slots",
+  standardTimeSlots = [],
 }: AvailabilityCalendarProps) => {
   const [step, setStep] = useState<"slots" | "dates" | "edit">(initialStep);
-  const [standardTimeSlots, setStandardTimeSlots] = useState<TimeSlot[]>(() => {
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(() => {
     if (initialAvailabilities.length > 0) {
       const allTimeSlots = new Set<string>();
       initialAvailabilities.forEach((av) => {
@@ -42,29 +43,57 @@ const AvailabilityCalendar = ({
   const [availabilities, setAvailabilities] = useState<Availability[]>(
     () => initialAvailabilities
   );
-  const [markedDates, setMarkedDates] = useState<Record<string, any>>(() => {
-    const marked: Record<string, any> = {};
-    initialAvailabilities.forEach((availability) => {
-      if (availability.timeSlots.size > 0) {
-        const dateString = availability.date.toISOString().split("T")[0];
-        marked[dateString] = {
-          selected: true,
-          selectedColor: "green",
-        };
-      }
-    });
-    return marked;
-  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
 
+  // Мемоизация обработчика изменений
+  const stableOnChange = useCallback(
+    (newAvailabilities: Availability[]) => {
+      onAvailabilityChange(newAvailabilities);
+    },
+    [onAvailabilityChange]
+  );
+
+  // Мемоизация отмеченных дат
+  const markedDates = useMemo(() => {
+    const marked: Record<string, any> = {};
+    availabilities.forEach((availability) => {
+      const dateString = availability.date.toISOString().split("T")[0];
+      // Подсвечиваем дату если есть хотя бы один активный слот
+      if (availability.timeSlots.size > 0) {
+        marked[dateString] = { selected: true, selectedColor: "green" };
+      }
+    });
+    return marked;
+  }, [availabilities]);
+
+  // Обновление только при реальных изменениях
   useEffect(() => {
-    console.log("Debug - markedDates:", Object.keys(markedDates).length);
-    console.log("Debug - availabilities:", availabilities.length);
-  }, [markedDates, availabilities]);
+    stableOnChange(availabilities);
+  }, [availabilities, stableOnChange]);
+
+  useEffect(() => {
+    console.log(
+      "Получены availability:",
+      availabilities.map((a) => ({
+        date: a.date.toISOString().split("T")[0],
+        slots: Array.from(a.timeSlots.entries()),
+      }))
+    );
+  }, [availabilities]);
+
+  useEffect(() => {
+    console.log("Обновленные markedDates:", markedDates);
+  }, [markedDates]);
+
+  useEffect(() => {
+    if (initialAvailabilities.length > 0) {
+      setAvailabilities(initialAvailabilities);
+    }
+  }, [initialAvailabilities]);
 
   const handleStandardTimeSlotsChange = (slots: TimeSlot[]) => {
-    setStandardTimeSlots(slots);
+    setTimeSlots(slots);
     console.log("Стандартные тайм-слоты:", slots);
   };
 
@@ -79,9 +108,7 @@ const AvailabilityCalendar = ({
       (a) => a.date.toISOString().split("T")[0] !== dateString
     );
 
-    setMarkedDates(newMarkedDates);
     setAvailabilities(newAvailabilities);
-    onAvailabilityChange(newAvailabilities);
     setIsEditorVisible(false);
     console.log("Удален день:", dateString);
   };
@@ -117,15 +144,13 @@ const AvailabilityCalendar = ({
           (a) => a.date.toISOString().split("T")[0] !== day.dateString
         );
         setAvailabilities(filteredAvailabilities);
-        onAvailabilityChange(filteredAvailabilities);
         console.log("Удален день:", day.dateString);
       } else {
         // Проверяем доступность слотов для выбранного дня
         const availableTimeSlots = new Map(
-          standardTimeSlots
-            .filter((slot) => slot.isSelected)
-            .filter((slot) => isTimeSlotAvailable(slot.time, selectedDate))
-            .map((slot) => [slot.time, true])
+          timeSlots
+            .filter((slot: TimeSlot) => slot.isSelected)
+            .map((slot: TimeSlot) => [slot.time, true])
         );
 
         if (availableTimeSlots.size === 0) {
@@ -147,7 +172,6 @@ const AvailabilityCalendar = ({
         );
         newAvailabilities.push(newAvailability);
         setAvailabilities(newAvailabilities);
-        onAvailabilityChange(newAvailabilities);
         console.log(
           "Добавлен день:",
           day.dateString,
@@ -156,7 +180,7 @@ const AvailabilityCalendar = ({
         );
       }
 
-      setMarkedDates(newMarkedDates);
+      setAvailabilities(newAvailabilities);
     } else if (step === "edit") {
       const date = new Date(day.dateString);
       setSelectedDate(date);
@@ -167,36 +191,50 @@ const AvailabilityCalendar = ({
   const handleSaveTimeSlots = (timeSlots: Map<string, boolean>) => {
     if (!selectedDate) return;
 
+    // Преобразуем Map в объект для логов
+    const slotsObject = Object.fromEntries(timeSlots);
+    console.log(
+      "Сохраненные слоты для",
+      selectedDate.toISOString(),
+      ":",
+      slotsObject
+    );
+
     const dateString = selectedDate.toISOString().split("T")[0];
     const newAvailabilities = [...availabilities];
-    const existingIndex = availabilities.findIndex(
+    const existingIndex = newAvailabilities.findIndex(
       (a) => a.date.toISOString().split("T")[0] === dateString
     );
 
-    if (timeSlots.size > 0) {
-      const newMarkedDates = { ...markedDates };
-      newMarkedDates[dateString] = {
-        selected: true,
-        selectedColor: "green",
-      };
+    // Фильтруем только активные слоты
+    const activeSlots = new Map(
+      Array.from(timeSlots.entries()).filter(([_, isSelected]) => isSelected)
+    );
+
+    if (activeSlots.size === 0) {
+      if (existingIndex !== -1) {
+        newAvailabilities.splice(existingIndex, 1);
+      }
+    } else {
+      const updatedAvailability = new Availability(selectedDate, activeSlots);
 
       if (existingIndex !== -1) {
-        newAvailabilities[existingIndex].timeSlots = timeSlots;
+        newAvailabilities[existingIndex] = updatedAvailability;
       } else {
-        newAvailabilities.push(new Availability(selectedDate, timeSlots));
+        newAvailabilities.push(updatedAvailability);
       }
-
-      setMarkedDates(newMarkedDates);
-      setAvailabilities(newAvailabilities);
-      onAvailabilityChange(newAvailabilities);
-    } else {
-      handleDeleteDay();
     }
 
+    console.log(
+      "Обновленные availability после сохранения:",
+      newAvailabilities
+    );
+    setAvailabilities(newAvailabilities);
+    onAvailabilityChange(newAvailabilities);
     setIsEditorVisible(false);
   };
 
-  const generateTimeSlots = (): TimeSlot[] => {
+  const generateTimeSlots = (timeSlots: Map<string, boolean>): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const startHour = 7;
     const endHour = 22;
@@ -208,10 +246,11 @@ const AvailabilityCalendar = ({
           .padStart(2, "0")}`;
         slots.push({
           time,
-          isSelected: false,
+          isSelected: timeSlots.has(time) ? timeSlots.get(time) : false,
         });
       }
     }
+
     return slots;
   };
 
@@ -222,7 +261,7 @@ const AvailabilityCalendar = ({
           <View>
             <StandardTimeSelector
               onTimeSlotChange={handleStandardTimeSlotsChange}
-              initialSlots={standardTimeSlots}
+              initialSlots={timeSlots}
             />
             <TouchableOpacity
               onPress={() => setStep("dates")}
@@ -242,6 +281,7 @@ const AvailabilityCalendar = ({
               onDayPress={handleDayPress}
               minDate={new Date().toISOString().split("T")[0]}
               firstDay={1}
+              current={new Date().toISOString().split("T")[0]}
               theme={{
                 selectedDayBackgroundColor: "green",
                 todayTextColor: "blue",
@@ -291,7 +331,13 @@ const AvailabilityCalendar = ({
           isVisible={isEditorVisible}
           onClose={() => setIsEditorVisible(false)}
           date={selectedDate}
-          standardTimeSlots={generateTimeSlots()}
+          standardTimeSlots={generateTimeSlots(
+            availabilities.find(
+              (a) =>
+                a.date.toISOString().split("T")[0] ===
+                selectedDate.toISOString().split("T")[0]
+            )?.timeSlots || new Map()
+          )}
           currentTimeSlots={
             availabilities.find(
               (a) =>
@@ -301,6 +347,15 @@ const AvailabilityCalendar = ({
           }
           onSave={handleSaveTimeSlots}
           onDelete={handleDeleteDay}
+          disabledSlots={Array.from(
+            availabilities.find(
+              (a) =>
+                a.date.toISOString().split("T")[0] ===
+                selectedDate.toISOString().split("T")[0]
+            )?.timeSlots || new Map()
+          )
+            .filter(([_, isAvailable]) => !isAvailable)
+            .map(([time]) => time)}
         />
       )}
     </SafeAreaView>

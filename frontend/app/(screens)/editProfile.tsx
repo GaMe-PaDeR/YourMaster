@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { router } from "expo-router";
-import tokenService from "../services/tokenService";
+import tokenService from "@/services/tokenService";
 import { API_ADDRESS } from "@/config";
 import axios from "axios";
 
@@ -33,9 +33,9 @@ export default function EditProfile() {
             confirmPassword,
           },
         },
-        () => router.push("/(auth)/loginScreen")
+        () => router.push("../(auth)/loginScreen")
       );
-      router.push("/(tabs)/ProfileScreen");
+      router.push("../(tabs)/ProfileScreen");
     } catch (error) {
       console.error("Failed to update user", error);
     }

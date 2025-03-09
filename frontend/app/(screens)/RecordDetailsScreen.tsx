@@ -1,12 +1,22 @@
 import { View, Text, StyleSheet } from "react-native";
 import React from "react";
-import Record from "../entities/Record";
+import Record from "@/entities/Record";
 import { TouchableOpacity, Alert } from "react-native";
-import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
-import tokenService from "../services/tokenService";
-import Service from "../entities/Service";
+import { useRouter } from "expo-router";
+import tokenService from "@/services/tokenService";
+import Service from "@/entities/Service";
 import { useState, useEffect } from "react";
-import User from "../entities/User";
+import User from "@/entities/User";
+import { useNavigation as useNativeNavigation } from "@react-navigation/native";
+import axios from "axios";
+import { API_ADDRESS } from "@/config";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import authProvider from "@/services/authProvider";
+
+type RootStackParamList = {
+  ChatDetail: { chatId: string; chatName: string };
+  //... другие маршруты
+};
 
 type RecordDetailsScreenProps = {
   service: string;
@@ -17,8 +27,8 @@ const RecordDetailsScreen = ({
 }: RecordDetailsScreenProps) => {
   const [service, setService] = useState<Service | null>(null);
   const [master, setMaster] = useState<User | null>(null);
-  const navigation = useNavigation();
   const router = useRouter();
+  const nativeNavigation = useNativeNavigation();
 
   useEffect(() => {
     const fetchService = async () => {
@@ -75,6 +85,36 @@ const RecordDetailsScreen = ({
           <Text className="text-white text-center">Отменить запись</Text>
         </TouchableOpacity>
       </View>
+      {service.master.role === "ROLE_CLIENT" && (
+        <TouchableOpacity
+          className="flex-1 bg-green-500 p-2 mx-1 rounded"
+          onPress={async () => {
+            try {
+              const response = await authProvider.post(
+                `${API_ADDRESS}chats/single`,
+                { recipientId: service.master.id }
+              );
+
+              // Обновляем список чатов после создания
+              await authProvider.get(`${API_ADDRESS}chats/user/current`);
+
+              router.push({
+                pathname: "../(screens)/ChatDetailScreen",
+                params: {
+                  chatId: (response.data as { id: string }).id,
+                  chatName:
+                    (response.data as { chatName?: string }).chatName ||
+                    service.master.firstName,
+                },
+              });
+            } catch (error) {
+              Alert.alert("Ошибка", "Не удалось начать чат");
+            }
+          }}
+        >
+          <Text className="text-white text-center">Написать мастеру</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };

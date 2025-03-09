@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { View, Text, TouchableOpacity, Modal } from "react-native";
 import { TimeSlot } from "./StandardTimeSelector";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 interface DayTimeSlotEditorProps {
   isVisible: boolean;
@@ -10,6 +11,7 @@ interface DayTimeSlotEditorProps {
   currentTimeSlots: Map<string, boolean>;
   onSave: (timeSlots: Map<string, boolean>) => void;
   onDelete: () => void;
+  disabledSlots: string[];
 }
 
 const DayTimeSlotEditor: React.FC<DayTimeSlotEditorProps> = ({
@@ -20,6 +22,7 @@ const DayTimeSlotEditor: React.FC<DayTimeSlotEditorProps> = ({
   currentTimeSlots,
   onSave,
   onDelete,
+  disabledSlots,
 }) => {
   const [editedTimeSlots, setEditedTimeSlots] = React.useState<
     Map<string, boolean>
@@ -50,11 +53,8 @@ const DayTimeSlotEditor: React.FC<DayTimeSlotEditorProps> = ({
     if (isVisible) {
       const newTimeSlots = new Map<string, boolean>();
       standardTimeSlots.forEach((slot) => {
-        // Проверяем доступность слота
         if (isTimeSlotAvailable(slot.time, date)) {
-          const isSelected = currentTimeSlots.has(slot.time)
-            ? currentTimeSlots.get(slot.time)
-            : false;
+          const isSelected = currentTimeSlots.get(slot.time) || false;
           newTimeSlots.set(slot.time, isSelected);
         }
       });
@@ -67,25 +67,22 @@ const DayTimeSlotEditor: React.FC<DayTimeSlotEditorProps> = ({
     onClose();
   };
 
-  const toggleTimeSlot = (time: string) => {
-    const newTimeSlots = new Map(editedTimeSlots);
-    const currentValue = newTimeSlots.get(time);
-    newTimeSlots.set(time, !currentValue);
-    setEditedTimeSlots(newTimeSlots);
-  };
+  const toggleTimeSlot = useCallback((time: string) => {
+    setEditedTimeSlots((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(time, !newMap.get(time));
+      return newMap;
+    });
+  }, []);
 
   const handleSave = () => {
+    // Сохраняем только выбранные слоты (true)
     const selectedSlots = new Map<string, boolean>();
     editedTimeSlots.forEach((value, key) => {
-      if (value) {
-        selectedSlots.set(key, true);
-      }
+      if (value) selectedSlots.set(key, true);
     });
-    if (selectedSlots.size === 0) {
-      onDelete();
-    } else {
-      onSave(selectedSlots);
-    }
+
+    onSave(selectedSlots);
     handleClose();
   };
 
@@ -99,45 +96,45 @@ const DayTimeSlotEditor: React.FC<DayTimeSlotEditorProps> = ({
             </Text>
             <TouchableOpacity
               onPress={onDelete}
-              className="px-3 py-1 rounded-lg bg-red-500"
+              className="p-2 bg-red-500 rounded"
             >
-              <Text className="text-white">Удалить день</Text>
+              <Ionicons name="trash-outline" size={24} color="white" />
             </TouchableOpacity>
           </View>
           <View className="flex-row flex-wrap justify-center">
             {standardTimeSlots.map((slot) => {
-              const isAvailable = isTimeSlotAvailable(slot.time, date);
+              const isBooked = disabledSlots.includes(slot.time);
               const isSelected = editedTimeSlots.get(slot.time);
-              const wasSelected = currentTimeSlots.has(slot.time);
+              const isAvailable = isTimeSlotAvailable(slot.time, date);
 
               return (
                 <TouchableOpacity
                   key={slot.time}
-                  onPress={() => isAvailable && toggleTimeSlot(slot.time)}
+                  onPress={() => !isBooked && toggleTimeSlot(slot.time)}
+                  disabled={isBooked || !isAvailable}
                   className={`m-1 p-2 rounded-lg ${
-                    !isAvailable
+                    isBooked
+                      ? "bg-red-300"
+                      : !isAvailable
                       ? "bg-gray-300"
                       : isSelected
-                      ? "bg-blue-500"
-                      : wasSelected
-                      ? "bg-blue-200"
+                      ? "bg-green-500"
                       : "bg-gray-200"
                   }`}
-                  disabled={!isAvailable}
                 >
                   <Text
                     className={`text-sm ${
-                      !isAvailable
+                      isBooked
+                        ? "text-red-800"
+                        : !isAvailable
                         ? "text-gray-500"
                         : isSelected
                         ? "text-white"
-                        : wasSelected
-                        ? "text-blue-800"
                         : "text-gray-800"
                     }`}
                   >
                     {slot.time}
-                    {!isAvailable}
+                    {isBooked && " 🔒"}
                   </Text>
                 </TouchableOpacity>
               );

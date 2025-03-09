@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { API_ADDRESS } from "@/config";
 import { router } from "expo-router";
-
+import { Alert } from "react-native";
+import User from "@/entities/User";
 // Определяем тип для callback'а
 type UnauthorizedCallback = () => void;
 
@@ -76,6 +77,32 @@ const tokenService = {
       }
     } catch (e) {
       console.error("Ошибка при получении refreshToken:", e);
+    }
+  },
+
+  /**
+   * @param {string} token
+   * @return {Promise<void>}
+   */
+  async saveUser(user: User) {
+    try {
+      await AsyncStorage.setItem("user", JSON.stringify(user));
+    } catch (e) {
+      console.error("Ошибка при сохранении user:", e);
+    }
+  },
+
+  /**
+   * @return {Promise<string|null>}
+   */
+  async getUser() {
+    try {
+      const user = await AsyncStorage.getItem("user");
+      if (user !== null) {
+        return JSON.parse(user);
+      }
+    } catch (e) {
+      console.error("Ошибка при получении user:", e);
     }
   },
 
@@ -197,13 +224,20 @@ const tokenService = {
       }
       throw new Error("Failed to refresh token");
     } catch (error) {
+      const e = error as AxiosError;
       console.error("Refresh error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
+        status: e.response?.status,
+        data: e.response?.data,
+        message: e.message,
       });
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        console.log("Clearing tokens and redirecting to login...");
+
+      if (
+        e.response?.status === 401 &&
+        (e.response.data as any)?.message
+          ?.toLowerCase()
+          .includes("refresh token expired")
+      ) {
+        console.log("Refresh token expired, clearing all tokens");
         await this.clearTokens();
         onUnauthorized?.();
       }
@@ -213,7 +247,9 @@ const tokenService = {
 
   async makeAuthenticatedRequest(
     requestConfig: any,
-    onUnauthorized: UnauthorizedCallback = () => router.push("/(auth)/login")
+    onUnauthorized: UnauthorizedCallback = () => {
+      router.push("/(auth)/loginScreen");
+    }
   ) {
     try {
       console.log("Making authenticated request:", {
@@ -235,31 +271,41 @@ const tokenService = {
       try {
         return await axios(config);
       } catch (error) {
+        const e = error as AxiosError;
         console.log("Request failed:", {
-          status: error.response?.status,
-          data: error.response?.data,
+          status: e.response?.status,
+          data: e.response?.data,
         });
 
-        if (error.response?.status === 401) {
-          console.log("Token expired, attempting refresh...");
-          try {
-            const newToken = await this.refreshAccessToken(onUnauthorized);
-            console.log("Got new token, retrying request...");
-            config.headers.Authorization = `Bearer ${newToken}`;
-            return await axios(config);
-          } catch (refreshError) {
-            console.error("Token refresh failed:", refreshError);
+        if (e.response?.status === 401) {
+          const errorMessage = (e.response.data as any)?.message?.toLowerCase();
+          const isTokenExpired = errorMessage?.includes("expired");
+
+          if (isTokenExpired) {
+            console.log("Token expired, attempting refresh...");
+            try {
+              const newToken = await this.refreshAccessToken(onUnauthorized);
+              console.log("Got new token, retrying request...");
+              config.headers.Authorization = `Bearer ${newToken}`;
+              return await axios(config);
+            } catch (refreshError) {
+              console.error("Token refresh failed:", refreshError);
+              await this.clearTokens();
+              onUnauthorized?.();
+              throw refreshError;
+            }
+          } else {
             await this.clearTokens();
             onUnauthorized?.();
-            throw refreshError;
           }
         }
         throw error;
       }
     } catch (error) {
+      const e = error as Error;
       console.error("Authentication error:", {
-        message: error.message,
-        stack: error.stack,
+        message: e.message,
+        stack: e.stack,
       });
       throw error;
     }
@@ -270,6 +316,32 @@ const tokenService = {
       await AsyncStorage.multiRemove(["accessToken", "refreshToken"]);
     } catch (e) {
       console.error("Ошибка при очистке токенов:", e);
+    }
+  },
+
+  async refreshTokens(refreshToken: string) {
+    try {
+      const response = await axios.post(
+        `${API_ADDRESS}auth/refresh`,
+        { refreshToken },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      console.log("Refresh request payload:", { refreshToken });
+      console.log("Refresh response headers:", response.headers);
+      console.log("Refresh response:", response.data);
+      return {
+        accessToken: response.data.accessToken,
+        refreshToken: response.data.refreshToken,
+      };
+    } catch (error) {
+      console.error("Ошибка обновления токенов:", error);
+      throw error;
     }
   },
 };

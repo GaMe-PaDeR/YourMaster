@@ -7,49 +7,46 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.yourmaster.api.Constants;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@Table(name = "messages")
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "messages")
-@Builder
+@Getter
+@Setter
 public class Message {
     @Id
-    @GeneratedValue
-    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne
-    @JoinColumn(name = "sender_id")
+    @JoinColumn(name = "chat_id", nullable = false)
+    private Chat chat;
+
+    @ManyToOne
+    @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    @Column(name = "content")
+    @Column(nullable = false)
     private String content;
-
-    @Column(name = "timestamp")
-    @JsonFormat(pattern = Constants.LOCAL_DATETIME_FORMAT)
-    @JsonSerialize(using = LocalDateTimeSerializer.class)
-    private LocalDateTime timestamp;
-
-    @Column(name = "isRead")
-    private Boolean isRead;
 
     @Column(name = "reply_to_message_id")
     private UUID replyToMessageId;
 
-    @ManyToOne
-    @JoinColumn(name = "chat_id", referencedColumnName = "id")
-    @JsonIgnore
-    private Chat chat;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "is_read", nullable = false)
+    private boolean isRead = false;
 
     @JsonProperty("chat_id")
     public UUID getChatId() {

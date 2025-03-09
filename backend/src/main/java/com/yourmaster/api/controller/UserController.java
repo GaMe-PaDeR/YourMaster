@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,5 +83,15 @@ public class UserController {
     @PutMapping("/toggleOnline")
     public ResponseEntity<User> toggleUserOnline() {
         return new ResponseEntity<>(userService.toggleUserOnline(), HttpStatus.OK);
+    }
+
+    @GetMapping("/interlocutor/{chatId}")
+    public ResponseEntity<User> getInterlocutorInfo(
+        @PathVariable UUID chatId,
+        @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        User currentUser = userService.getUserByEmail(userDetails.getUsername());
+        User interlocutor = userService.getInterlocutorInfo(chatId, currentUser.getId());
+        return ResponseEntity.ok(interlocutor);
     }
 }

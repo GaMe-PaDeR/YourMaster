@@ -1,5 +1,7 @@
 package com.yourmaster.api.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,10 +15,15 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class SendMessageRequest {
+    @NotNull
     private UUID chatId;
-
+    
+    @NotNull
+    private UUID userId;
+    
+    @NotBlank
+    private String content;
+    
     @Nullable
     private UUID replyToMessageId;
-    private UUID userId;
-    private String content;
 }

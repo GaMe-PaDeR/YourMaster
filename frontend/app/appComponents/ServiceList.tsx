@@ -1,6 +1,6 @@
-import Service from "@/app/entities/Service";
+import Service from "@/entities/Service";
 import { FlatList, View, Text, TouchableOpacity } from "react-native";
-import tokenService from "@/app/services/tokenService";
+import tokenService from "@/services/tokenService";
 import { router } from "expo-router";
 
 const ServiceList = ({ services }: { services: Service[] }) => {
@@ -15,7 +15,7 @@ const ServiceList = ({ services }: { services: Service[] }) => {
             className="flex flex-row items-center rounded-lg bg-white p-4"
             onPress={async () => {
               await tokenService.setItem("service", JSON.stringify(item));
-              router.push("/(screens)/RecordDetailsScreen");
+              router.push("../(screens)/RecordDetailsScreen");
             }}
           >
             <View key={"view_" + item.id} className="flex-1 ml-4">

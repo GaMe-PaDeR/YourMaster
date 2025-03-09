@@ -91,14 +91,16 @@ public class User implements UserDetails {
     @JsonIgnore
     private RefreshToken refreshToken;
 
-    @Column(name = "is_online")
-    @NotNull
+    @Column(name = "is_online", nullable = false)
     private boolean isOnline = false;
 
     @Column(name = "last_online")
     @JsonSerialize(using = LocalDateTimeSerializer.class)
     @JsonFormat(pattern = Constants.LOCAL_DATETIME_FORMAT)
     private LocalDateTime lastOnline;
+
+    @Column(name = "push_token")
+    private String pushToken;
 
     public User(String email, String password,
                 String firstName, String lastName, LocalDate birthday, String phoneNumber,

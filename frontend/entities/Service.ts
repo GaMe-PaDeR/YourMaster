@@ -1,5 +1,5 @@
-import User from "./User";
-import Availability from "./Availability";
+import User from "@/entities/User";
+import Availability from "@/entities/Availability";
 
 class Service {
     id: string;

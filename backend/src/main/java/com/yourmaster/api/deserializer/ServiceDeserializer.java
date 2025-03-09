@@ -9,6 +9,7 @@ import com.yourmaster.api.enums.Category;
 import com.yourmaster.api.model.Availability;
 import com.yourmaster.api.model.Service;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -35,12 +36,23 @@ public class ServiceDeserializer extends JsonDeserializer<Service> {
         if (availabilityNode != null && availabilityNode.isArray()) {
             for (JsonNode avNode : availabilityNode) {
                 Availability availability = new Availability();
-                availability.setDate(LocalDateTime.parse(avNode.get("date").asText()));
+                JsonNode dateNode = avNode.get("date");
+                if (dateNode != null) {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                    String dateString = dateNode.asText().substring(0, 10);
+                    LocalDate date = LocalDate.parse(dateString, formatter);
+                    availability.setDate(date);
+                }
 
                 Map<String, Boolean> timeSlots = new HashMap<>();
                 JsonNode timeSlotsNode = avNode.get("timeSlots");
                 if (timeSlotsNode != null && timeSlotsNode.isArray()) {
-                    timeSlotsNode.forEach(slot -> timeSlots.put(slot.asText(), false));
+                    timeSlotsNode.forEach(slot -> {
+                        String time = slot.asText();
+                        if (!time.isEmpty()) {
+                            timeSlots.put(time, true);
+                        }
+                    });
                 }
                 availability.setTimeSlotsMap(timeSlots);
                 availabilityList.add(availability);

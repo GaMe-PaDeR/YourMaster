@@ -2,12 +2,15 @@ package com.yourmaster.api.service.impl;
 
 import com.yourmaster.api.Constants;
 import com.yourmaster.api.dto.ServicesDto;
+import com.yourmaster.api.dto.response.TimeSlotResponse;
 import com.yourmaster.api.enums.Category;
 import com.yourmaster.api.exception.ApiException;
 import com.yourmaster.api.exception.ResourceNotFoundException;
 import com.yourmaster.api.model.Availability;
+import com.yourmaster.api.model.Record;
 import com.yourmaster.api.model.Service;
 import com.yourmaster.api.model.User;
+import com.yourmaster.api.repository.RecordRepository;
 import com.yourmaster.api.repository.ServiceRepository;
 import com.yourmaster.api.service.FileService;
 import com.yourmaster.api.service.ServiceService;
@@ -21,10 +24,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @org.springframework.stereotype.Service
 @Slf4j
@@ -37,6 +41,9 @@ public class ServiceServiceImpl implements ServiceService {
 
     @Autowired
     private ServiceRepository serviceRepository;
+
+    @Autowired
+    private RecordRepository recordRepository;
 
     @Value("${project.serviceImg}")
     private String serviceFolder;
@@ -73,34 +80,31 @@ public class ServiceServiceImpl implements ServiceService {
     }
 
     @Override
-    public Service updateService(UUID serviceId, Service serviceDto, List<MultipartFile> newFiles, List<String> replaceFilesUrls) throws ApiException {
+    public Service updateService(UUID serviceId, Service serviceDto, List<MultipartFile> newFiles, List<String> replaceFilesUrls) {
         Service service = getServiceById(serviceId);
-        List<String> newFileNames;
         List<String> serviceImages = new ArrayList<>(service.getPhotos());
 
-        if(newFiles != null) {
-            newFileNames = fileService.uploadFileList(serviceFolder, newFiles);
+        if (newFiles != null && !newFiles.isEmpty()) {
+            List<String> newFileNames = fileService.uploadFileList(serviceFolder, newFiles);
             serviceImages.addAll(newFileNames);
         }
 
-        if(replaceFilesUrls != null) {
-            replaceFilesUrls.forEach(f -> {
+        if (replaceFilesUrls != null) {
+            replaceFilesUrls.forEach(fileName -> {
                 try {
-                    Files.deleteIfExists(fileService.getStaticFilePath(serviceFolder, f));
-                    serviceImages.remove(f);
-                    log.debug("updateService[1]: Files deleted {}", f);
+                    Files.deleteIfExists(fileService.getStaticFilePath(serviceFolder, fileName));
+                    serviceImages.remove(fileName);
                 } catch (IOException e) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, e.getMessage());
                 }
             });
-            log.debug("updateService[2]: Files remain {}", serviceImages);
         }
 
         service.setPhotos(serviceImages);
-        service.setCategory(serviceDto.getCategory());
-        service.setDescription(serviceDto.getDescription());
-        service.setPrice(serviceDto.getPrice());
         service.setTitle(serviceDto.getTitle());
+        service.setDescription(serviceDto.getDescription());
+        service.setCategory(serviceDto.getCategory());
+        service.setPrice(serviceDto.getPrice());
         service.setEstimatedDuration(serviceDto.getEstimatedDuration());
         service.setAvailability(serviceDto.getAvailability());
 
@@ -110,24 +114,17 @@ public class ServiceServiceImpl implements ServiceService {
 
     @Override
     public void deleteService(UUID serviceId) {
-        Service service = getServiceById(serviceId);
-
-        if (!userService.getCurrentUser().equals(service.getMaster())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, Constants.PERMISSION_MESSAGE);
+        Service service = serviceRepository.findById(serviceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Service", "id", serviceId));
+        
+        // Проверка, есть ли активные записи
+        if (recordRepository.existsByServiceIdAndRecordDateAfter(serviceId, LocalDateTime.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Невозможно удалить услугу с активными записями");
         }
-
-        List<String> serviceImages = service.getPhotos();
-        log.info("deleteService[1]: Getting the service images urls {}", serviceImages);
-
-        serviceImages.forEach(f -> {
-            try {
-                Files.deleteIfExists(fileService.getStaticFilePath(serviceFolder, f));
-            } catch (IOException e) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, e.getMessage());
-            }
-        });
-        log.info("deleteService[2]: Images was successfully deleted from the disk. Service ID {} deleted", serviceId);
-        serviceRepository.delete(service);
+        
+        // Мягкое удаление
+        service.setDeleted(true);
+        serviceRepository.save(service);
     }
 
     @Override
@@ -139,8 +136,13 @@ public class ServiceServiceImpl implements ServiceService {
     }
 
     @Override
-    public List<Service> getAllServices(int limit) {
-        return serviceRepository.findAll(PageRequest.of(0, limit)).getContent();
+    public List<Service> getAllServices() {
+        return serviceRepository.findAllActiveServices();
+    }
+
+    @Override
+    public List<Service> getServicesByMasterId(UUID masterId) {
+        return serviceRepository.findActiveServicesByMasterId(masterId);
     }
 
     @Override
@@ -156,5 +158,67 @@ public class ServiceServiceImpl implements ServiceService {
         return serviceRepository.findAllByCategory(category);
     }
 
+    public List<TimeSlotResponse> getAvailableTimeSlots(UUID serviceId, LocalDate date) {
+        Service service = getServiceById(serviceId);
+        List<Record> futureRecords = recordRepository.findByServiceIdAndRecordDateAfter(serviceId, LocalDateTime.now());
+        
+        return service.getAvailability().stream()
+            .filter(av -> av.getDate().equals(date))
+            .flatMap(av -> av.getTimeSlotsMap().entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(entry -> {
+                    LocalTime time = LocalTime.parse(entry.getKey());
+                    LocalDateTime dateTime = LocalDateTime.of(date, time);
+                    boolean isBooked = futureRecords.stream()
+                        .anyMatch(r -> r.getRecordDate().equals(dateTime));
+                    return new TimeSlotResponse(entry.getKey(), !isBooked);
+                }))
+            .sorted(Comparator.comparing(TimeSlotResponse::getTime))
+            .collect(Collectors.toList());
+    }
 
+
+    @Override
+    public List<String> getAvailableDates(UUID serviceId) {
+        log.info("Calculating available dates for service: {}", serviceId);
+        Service service = getServiceById(serviceId);
+        LocalDateTime now = LocalDateTime.now();
+        log.debug("Current time: {}", now);
+        
+        List<Record> futureRecords = recordRepository.findByServiceIdAndRecordDateAfter(serviceId, now);
+        log.debug("Found {} future records", futureRecords.size());
+
+        List<LocalDate> result = service.getAvailability().stream()
+            .peek(av -> log.trace("Processing availability: {}", av.getDate()))
+            .filter(av -> {
+                boolean dateValid = av.getDate().isAfter(now.toLocalDate().minusDays(1));
+                log.debug("Date {} valid: {}", av.getDate(), dateValid);
+                return dateValid;
+            })
+            .filter(av -> av.getTimeSlotsMap().entrySet().stream()
+                .anyMatch(entry -> {
+                    try {
+                        LocalTime time = LocalTime.parse(entry.getKey());
+                        LocalDateTime slotDateTime = LocalDateTime.of(av.getDate(), time);
+                        boolean slotAvailable = entry.getValue() 
+                            && slotDateTime.isAfter(now)
+                            && futureRecords.stream().noneMatch(r -> r.getRecordDate().equals(slotDateTime));
+                        
+                        log.trace("Slot {} available: {}", entry.getKey(), slotAvailable);
+                        return slotAvailable;
+                    } catch (Exception e) {
+                        log.error("Error processing time slot: {}", entry.getKey(), e);
+                        return false;
+                    }
+                }))
+            .map(Availability::getDate)
+            .distinct()
+            .sorted()
+            .collect(Collectors.toList());
+
+        log.info("Found {} available dates for service {}", result.size(), serviceId);
+        return result.stream()
+            .map(date -> date.toString())
+            .collect(Collectors.toList());
+    }
 }

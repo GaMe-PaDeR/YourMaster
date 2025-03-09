@@ -1,3 +1,4 @@
+import React from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -15,6 +16,13 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { NavigationContainer } from "@react-navigation/native";
+// import { initNotificationService } from "@/services/notificationService";
+import "../utils/sockjs-polyfill";
+import tokenService from "@/services/tokenService";
+import { AppState, AppStateStatus } from "react-native";
+import { API_ADDRESS } from "@/config";
+import { jwtDecode } from "jwt-decode";
+import { useRouter } from "expo-router";
 
 const saveToken = async (accessToken: string, refreshToken: string) => {
   try {
@@ -25,7 +33,6 @@ const saveToken = async (accessToken: string, refreshToken: string) => {
   }
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -34,10 +41,12 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
   // const Stack = createNativeStackNavigator();
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState<string>("");
   const [refreshToken, setRefreshToken] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showIndexScreen, setShowIndexScreen] = useState(false);
+  const [showIndexScreen, setShowIndexScreen] = useState(true);
+  const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (loaded) {
@@ -45,28 +54,29 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // useEffect(() => {
-  //   const responseText = null;
-  //   const refreshToken = AsyncStorage.getItem('refreshToken');
-  //   const body = "{'refreshToken':" + refreshToken + "}";
-  //   if (refreshToken != null) {
-  //     const responseData = axios.post('http://192.168.1.8:8080/api/v1/auth/refresh', { refreshToken }, {
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //     })
-  //     .then((response) => {
-  //       const { accessToken, refreshToken } = response.data;
-  //       saveToken(accessToken, refreshToken);
-  //       setIsAuthenticated(true);
-  //     })
-  //     .catch((error) => {
-  //       console.error('Ошибка при обновлении токена:', error);
-  //     });
-  //   } else {
-  //     setIsAuthenticated(false);
-  //   }
-  // }, []);
+  useEffect(() => {
+    const loadToken = async () => {
+      const token = await tokenService.getAccessToken();
+      setAccessToken(token || "");
+    };
+    loadToken();
+  }, []);
+
+  useEffect(() => {
+    const prepare = async () => {
+      try {
+        await SplashScreen.preventAutoHideAsync();
+        const refreshToken = await AsyncStorage.getItem("refreshToken");
+        setIsAuthenticated(!!refreshToken);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsReady(true);
+        await SplashScreen.hideAsync();
+      }
+    };
+    prepare();
+  }, []);
 
   useEffect(() => {
     const checkFirstLaunch = async () => {
@@ -81,7 +91,14 @@ export default function RootLayout() {
     checkFirstLaunch();
   }, []);
 
-  if (!loaded) {
+  // useEffect(() => {
+  //   const initializeSocket = async () => {
+  //     await initNotificationService();
+  //   };
+  //   initializeSocket();
+  // }, []);
+
+  if (!isReady) {
     return null;
   }
 
@@ -89,20 +106,12 @@ export default function RootLayout() {
     // <NavigationContainer>
     <RootSiblingParent>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack initialRouteName="index">
-          {/* {showIndexScreen && (
-            <Stack.Screen name="index" options={{ headerShown: false}}/>
-          )}
+        <Stack screenOptions={{ headerShown: false }}>
           {isAuthenticated ? (
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" />
           ) : (
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          )} */}
-          <Stack.Screen name="+not-found" />
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(screens)" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" />
+          )}
         </Stack>
       </ThemeProvider>
     </RootSiblingParent>

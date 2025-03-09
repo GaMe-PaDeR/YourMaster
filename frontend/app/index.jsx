@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, Dimensions, StyleSheet } from 'react-native';
 import { router } from 'expo-router'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -132,4 +133,21 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OnboardingSlider;
+export default function Index() {
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const refreshToken = await AsyncStorage.getItem("refreshToken");
+      if (refreshToken) {
+        router.replace("/(tabs)/home");
+      }
+      setIsChecking(false);
+    };
+    checkAuth();
+  }, []);
+
+  if (isChecking) return null;
+  
+  return <OnboardingSlider />;
+}

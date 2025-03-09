@@ -29,6 +29,18 @@ export default function ScreensLayout() {
         name="createNewService"
         options={{ headerShown: true, title: "Создать услугу" }}
       />
+      <Stack.Screen
+        name="ChatDetailScreen"
+        options={{ headerShown: false, title: "Чат" }}
+      />
+      <Stack.Screen
+        name="bookService"
+        options={{ headerShown: true, title: "Запись" }}
+      />
+      <Stack.Screen
+        name="editService"
+        options={{ headerShown: true, title: "Редактирование услуги" }}
+      />
     </Stack>
   );
 }

@@ -1,5 +1,6 @@
 package com.yourmaster.api.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,5 +21,11 @@ public interface RecordRepository extends JpaRepository<Record, UUID> {
 
     List<Record> findAllByMasterId(UUID masterId);
 
-    List<Record> findAllByClient_OrMaster_Id(User client, User master);
+    List<Record> findAllByClientId_OrMaster_Id(UUID client, UUID master);
+
+    List<Record> findByServiceIdAndRecordDateAfter(UUID serviceId, LocalDateTime date);
+
+    boolean existsByServiceIdAndRecordDateAfter(UUID serviceId, LocalDateTime now);
+
+    List<Record> findByRecordDateBetween(LocalDateTime start, LocalDateTime end);
 }
