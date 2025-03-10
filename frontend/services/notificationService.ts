@@ -4,6 +4,7 @@ import authProvider from "./authProvider";
 import { API_ADDRESS } from "@/config";
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
+import User from "@/entities/User";
 
 let socket: Socket | null = null;
 
@@ -33,7 +34,9 @@ export const unsubscribeFromNotifications = () => {
 export const sendTestPushNotification = async (token: string) => {
   try {
     const user = await tokenService.getUser();
+    console.log("USER ", user)
     if (!user || !user.pushToken) {
+      console.log("THERE IS NO PUSHTOKEN")
       throw new Error("Push token not registered");
     }
 
@@ -111,13 +114,21 @@ const sendPushTokenToServer = async (token: string) => {
       throw new Error('Не удалось отправить токен на сервер');
     }
 
+    const userResponse = await authProvider.get(
+      `${API_ADDRESS}users/currentUser`
+    );
+    console.log("userResponse ", userResponse.data);
+    await tokenService.saveUser(userResponse.data);
+    
     console.log('Push-токен успешно отправлен на сервер');
+
+    console.log("User saved")
   } catch (error) {
     console.error('Ошибка при отправке push-токена на сервер:', error);
   }
 };
 
-export const setupNotificationListeners = (router) => {
+export const setupNotificationListeners = (router: any) => {
   Notifications.addNotificationReceivedListener(notification => {
     console.log('Notification received:', notification);
   });

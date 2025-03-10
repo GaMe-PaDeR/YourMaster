@@ -24,6 +24,10 @@ import com.yourmaster.api.service.ExpoNotificationService;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.model.Record;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 @Controller
 @RequestMapping("api/v1/notifications")
@@ -59,49 +63,6 @@ public class NotificationController {
         }
     }
 
-    public void sendReminderNotification(UUID userId, String message) {
-        messagingTemplate.convertAndSendToUser(
-            userId.toString(),
-            "/queue/notifications",
-            ChatNotificationDto.builder()
-                .message(message)
-                .build()
-        );
-
-        User user = userService.getUserById(userId);
-        if (user.getPushToken() != null) {
-            expoNotificationService.sendNotification(
-                user.getPushToken(),
-                "Напоминание",
-                message
-            );
-        }
-    }
-
-    public void sendNewRecordNotification(UUID masterId, Record record) {
-        String message = String.format("Новая запись на %s от %s %s",
-            record.getService().getTitle(),
-            record.getClient().getFirstName(),
-            record.getClient().getLastName());
-
-        messagingTemplate.convertAndSendToUser(
-            masterId.toString(),
-            "/queue/notifications",
-            ChatNotificationDto.builder()
-                .message(message)
-                .build()
-        );
-
-        User master = userService.getUserById(masterId);
-        if (master.getPushToken() != null) {
-            expoNotificationService.sendNotification(
-                master.getPushToken(),
-                "Новая запись",
-                message
-            );
-        }
-    }
-
     @GetMapping("/count")
     public ResponseEntity<Map<String, Long>> getUnreadNotificationCount() {
         User currentUser = userService.getCurrentUser();
@@ -110,11 +71,23 @@ public class NotificationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Notification>> getNotifications() {
+    public ResponseEntity<Page<Notification>> getNotifications(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         User currentUser = userService.getCurrentUser();
-        List<Notification> notifications = notificationService.getNotificationsForUser(currentUser.getId());
+        Page<Notification> notifications = notificationService.getNotificationsForUser(
+                currentUser.getId(), 
+                PageRequest.of(page, size, Sort.by("createdAt").descending())
+        );
         return ResponseEntity.ok(notifications);
     }
+
+//    @GetMapping("/unread-count")
+//    public ResponseEntity<Long> getUnreadNotificationCount() {
+//        User currentUser = userService.getCurrentUser();
+//        long count = notificationService.getUnreadCountForUser(currentUser.getId());
+//        return ResponseEntity.ok(count);
+//    }
 
     @PutMapping("/{notificationId}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable UUID notificationId) {
@@ -124,9 +97,9 @@ public class NotificationController {
     }
 
     @PostMapping
-    public ResponseEntity<Notification> createNotification(@RequestBody String message) {
+    public ResponseEntity<Notification> createNotification(@RequestBody String message, @RequestParam String title) {
         User currentUser = userService.getCurrentUser();
-        Notification notification = notificationService.createNotification(currentUser, message);
+        Notification notification = notificationService.createNotification(currentUser, message, title);
         return ResponseEntity.ok(notification);
     }
 
@@ -171,5 +144,37 @@ public class NotificationController {
         userService.saveUser(currentUser);
 
         return ResponseEntity.ok("Push token registered successfully");
+    }
+
+    public void sendTestPushNotification(String message) {
+        User currentUser = userService.getCurrentUser();
+        if (currentUser.getPushToken() != null) {
+            expoNotificationService.sendNotification(
+                currentUser.getPushToken(),
+                "Тестовое уведомление",
+                message
+            );
+        }
+    }
+
+    @DeleteMapping("/{notificationId}")
+    public ResponseEntity<Void> deleteNotification(@PathVariable UUID notificationId) {
+        User currentUser = userService.getCurrentUser();
+        notificationService.deleteNotification(notificationId, currentUser.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Void> clearAllNotifications() {
+        User currentUser = userService.getCurrentUser();
+        notificationService.clearAllNotifications(currentUser.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/read-all")
+    public ResponseEntity<Void> markAllAsRead() {
+        User currentUser = userService.getCurrentUser();
+        notificationService.markAllAsRead(currentUser.getId());
+        return ResponseEntity.noContent().build();
     }
 }

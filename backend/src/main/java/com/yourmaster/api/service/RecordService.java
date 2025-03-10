@@ -1,5 +1,6 @@
 package com.yourmaster.api.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.time.LocalDate;
@@ -27,4 +28,6 @@ public interface RecordService {
     Record updateRecordStatus(UUID recordId, String newStatus);
 
     List<Record> getRecordsByDate(LocalDate date);
+
+    List<Record> getRecordsBetweenDates(LocalDateTime start, LocalDateTime end);
 }

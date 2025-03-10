@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.context.annotation.Lazy;
+import javax.annotation.PostConstruct;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,6 +40,12 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Value("${project.avatar}")
+    private String avatarFolderName;
+
+    @Value("${system.user.password}")
+    private String systemUserPassword;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -49,8 +56,20 @@ public class UserServiceImpl implements UserService {
     @Lazy
     private ChatService chatService;
 
-    @Value("${project.avatar}")
-    private String avatarFolderName;
+    @PostConstruct
+    public void initSystemUser() {
+        String systemUserEmail = "system@yourmaster.com";
+        if (!userRepository.existsByEmail(systemUserEmail)) {
+            User systemUser = new User();
+            systemUser.setEmail(systemUserEmail);
+            systemUser.setPassword(passwordEncoder.encode(systemUserPassword));
+            systemUser.setRole(Role.ROLE_MASTER);
+            systemUser.setFirstName("System");
+            systemUser.setLastName("User");
+            systemUser.setPhoneNumber("+71111111111");
+            userRepository.save(systemUser);
+        }
+    }
 
     @Override
     public User addUser(UserDto userDto, MultipartFile file) throws IOException {

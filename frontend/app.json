@@ -44,9 +44,13 @@
       "barStyle": "dark-content"
     },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "59c17207-ec6c-4d14-9838-73e24d1e575f"
       }
-    }
+    },
+    "owner": "game-pader"
   }
 }

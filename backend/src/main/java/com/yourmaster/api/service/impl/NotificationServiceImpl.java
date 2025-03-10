@@ -1,26 +1,46 @@
 package com.yourmaster.api.service.impl;
 
+import com.yourmaster.api.dto.ChatNotificationDto;
 import com.yourmaster.api.model.Notification;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.repository.NotificationRepository;
+import com.yourmaster.api.service.ExpoNotificationService;
 import com.yourmaster.api.service.NotificationService;
+import com.yourmaster.api.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
+import org.springframework.beans.factory.annotation.Autowired;
+import com.yourmaster.api.controller.NotificationController;
+import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
+import com.yourmaster.api.model.Record;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import com.yourmaster.api.exception.ResourceNotFoundException;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
-    private final NotificationRepository notificationRepository;
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
-    @Override
-    public List<Notification> getNotificationsForUser(UUID userId) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
-    }
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private ExpoNotificationService expoNotificationService;
+
+    // @Override
+    // public List<Notification> getNotificationsForUser(UUID userId) {
+    //     return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    // }
 
     @Override
     public long getUnreadCountForUser(UUID userId) {
@@ -40,12 +60,121 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public Notification createNotification(User user, String message) {
-        Notification notification = Notification.builder()
-            .user(user)
-            .message(message)
-            .read(false)
-            .build();
+    public Notification createNotification(User user, String message, String title) {
+        Notification notification = new Notification();
+        notification.setUser(user);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setRead(false);
         return notificationRepository.save(notification);
+    }
+
+    @Override
+    public void sendNewRecordNotification(UUID masterId, Record record) {
+        String message = String.format("Новая запись на %s от %s %s",
+                record.getService().getTitle(),
+                record.getClient().getFirstName(),
+                record.getClient().getLastName());
+
+        // Сохраняем уведомление в БД
+        Notification notification = createNotification(
+                userService.getUserById(masterId),
+                message,
+                "Новая запись"
+        );
+
+        // Отправляем через WebSocket
+        messagingTemplate.convertAndSendToUser(
+                masterId.toString(),
+                "/queue/notifications",
+                ChatNotificationDto.builder()
+                        .id(notification.getId())
+                        .message(message)
+                        .build()
+        );
+
+        // Отправляем push-уведомление
+        User master = userService.getUserById(masterId);
+        if (master.getPushToken() != null) {
+            expoNotificationService.sendNotification(
+                    master.getPushToken(),
+                    "Новая запись",
+                    message
+            );
+        }
+    }
+
+    @Override
+    public void sendReminderNotification(UUID userId, String message) {
+        // Сохраняем уведомление в БД
+        Notification notification = createNotification(
+                userService.getUserById(userId),
+                message,
+                "Напоминание"
+        );
+
+        // Отправляем через WebSocket
+        messagingTemplate.convertAndSendToUser(
+                userId.toString(),
+                "/queue/notifications",
+                ChatNotificationDto.builder()
+                        .id(notification.getId())
+                        .message(message)
+                        .build()
+        );
+
+        // Отправляем push-уведомление
+        User user = userService.getUserById(userId);
+        if (user.getPushToken() != null) {
+            expoNotificationService.sendNotification(
+                    user.getPushToken(),
+                    "Напоминание",
+                    message
+            );
+        }
+    }
+
+    @Override
+    public void sendRecordCancellationNotification(UUID userId, String title, String message) {
+        // Создаем уведомление в базе данных
+        Notification notification = new Notification();
+        notification.setUser(userService.getUserById(userId));
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setRead(false);
+        notificationRepository.save(notification);
+
+        // Отправляем push-уведомление через Expo
+        User user = userService.getUserById(userId);
+        if (user.getPushToken() != null) {
+            expoNotificationService.sendNotification(user.getPushToken(), title, message);
+        }
+    }
+
+    @Override
+    public Page<Notification> getNotificationsForUser(UUID userId, Pageable pageable) {
+        return notificationRepository.findByUserId(userId, pageable);
+    }
+
+    @Override
+    public void deleteNotification(UUID notificationId, UUID userId) {
+        Notification notification = notificationRepository.findById(notificationId)
+            .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+        
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new AccessDeniedException("You can only delete your own notifications");
+        }
+        
+        notificationRepository.delete(notification);
+    }
+
+    @Override
+    public void clearAllNotifications(UUID userId) {
+        notificationRepository.deleteAllByUserId(userId);
+    }
+
+    @Override
+    public void markAllAsRead(UUID userId) {
+        notificationRepository.markAllAsReadForUser(userId);
     }
 }

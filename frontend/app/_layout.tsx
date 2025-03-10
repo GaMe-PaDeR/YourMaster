@@ -23,6 +23,7 @@ import { AppState, AppStateStatus } from "react-native";
 import { API_ADDRESS } from "@/config";
 import { jwtDecode } from "jwt-decode";
 import { useRouter } from "expo-router";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 const saveToken = async (accessToken: string, refreshToken: string) => {
   try {
@@ -103,18 +104,20 @@ export default function RootLayout() {
   }
 
   return (
-    // <NavigationContainer>
-    <RootSiblingParent>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          {isAuthenticated ? (
-            <Stack.Screen name="(tabs)" />
-          ) : (
-            <Stack.Screen name="(auth)" />
-          )}
-        </Stack>
-      </ThemeProvider>
-    </RootSiblingParent>
-    // </NavigationContainer>
+    <NotificationProvider>
+      <RootSiblingParent>
+        <ThemeProvider
+          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+        >
+          <Stack screenOptions={{ headerShown: false }}>
+            {isAuthenticated ? (
+              <Stack.Screen name="(tabs)" />
+            ) : (
+              <Stack.Screen name="(auth)" />
+            )}
+          </Stack>
+        </ThemeProvider>
+      </RootSiblingParent>
+    </NotificationProvider>
   );
 }

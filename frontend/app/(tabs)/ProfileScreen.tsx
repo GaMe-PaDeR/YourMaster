@@ -32,7 +32,8 @@ const ProfileScreen = () => {
           `${API_ADDRESS}users/currentUser`
         );
         console.log(response.data);
-        setUser(User.fromJSON(response.data));
+        setUser(response.data);
+        await tokenService.saveUser(response.data);
 
         // Получаем количество уведомлений
         const notificationsResponse = await authProvider.get(

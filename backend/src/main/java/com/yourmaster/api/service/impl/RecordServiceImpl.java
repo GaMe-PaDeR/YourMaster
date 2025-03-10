@@ -1,8 +1,11 @@
 package com.yourmaster.api.service.impl;
 
 //import com.yourmaster.api.controller.NotificationController;
+import com.yourmaster.api.config.SchedulerConfig;
+import com.yourmaster.api.controller.NotificationController;
 import com.yourmaster.api.dto.RecordDto;
 import com.yourmaster.api.enums.RecordStatus;
+import com.yourmaster.api.enums.Role;
 import com.yourmaster.api.exception.ApiException;
 import com.yourmaster.api.exception.ResourceNotFoundException;
 import com.yourmaster.api.model.Availability;
@@ -12,6 +15,7 @@ import com.yourmaster.api.repository.RecordRepository;
 import com.yourmaster.api.service.RecordService;
 import com.yourmaster.api.service.ServiceService;
 import com.yourmaster.api.service.UserService;
+import com.yourmaster.api.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -23,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @Slf4j
@@ -36,8 +41,8 @@ public class RecordServiceImpl implements RecordService {
     @Autowired
     private ServiceService serviceService;
 
-//    @Autowired
-//    private NotificationController notificationController;
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     public Record createRecord(RecordDto recordDto) {
@@ -84,10 +89,13 @@ public class RecordServiceImpl implements RecordService {
 
             log.info("createRecord[5]: Saving record");
 
-//            // Отправка уведомления мастеру
-//            notificationController.sendNewRecordNotification(record.getMaster().getId(), record);
+            // Сохраняем запись
+            Record savedRecord = recordRepository.save(record);
 
-            return recordRepository.save(record);
+            // Отправляем уведомление мастеру о новой записи
+            notificationService.sendNewRecordNotification(savedRecord.getMaster().getId(), savedRecord);
+
+            return savedRecord;
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
@@ -150,6 +158,41 @@ public class RecordServiceImpl implements RecordService {
         Record record = recordRepository.findById(recordId)
             .orElseThrow(() -> new ResourceNotFoundException("Record", "id", recordId));
         
+        // Проверка на отмену записи
+        if (newStatus.equals("CANCELLED")) {
+            User currentUser = userService.getCurrentUser();
+            LocalDateTime now = LocalDateTime.now();
+            
+            // Если отменяет клиент
+            if (currentUser.getRole() == Role.ROLE_CLIENT) {
+                // Проверка, что до записи осталось больше 24 часов
+                if (record.getRecordDate().isBefore(now.plusHours(24))) {
+                    throw new ApiException(HttpStatus.FORBIDDEN, "Клиент может отменить запись только за 24 часа до начала");
+                }
+                // Отправка уведомления мастеру
+                notificationService.sendRecordCancellationNotification(
+                    record.getMaster().getId(),
+                    "Клиент отменил запись",
+                    String.format("Клиент %s отменил запись на %s", 
+                        record.getClient().getFirstName(), record.getClient().getLastName(),
+                        record.getRecordDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+                    )
+                );
+            } 
+            // Если отменяет мастер
+            else if (currentUser.getRole() == Role.ROLE_MASTER) {
+                // Отправка уведомления клиенту
+                notificationService.sendRecordCancellationNotification(
+                    record.getClient().getId(),
+                    "Мастер отменил запись",
+                    String.format("Мастер %s отменил вашу запись на %s", 
+                        record.getMaster().getFirstName(), record.getMaster().getLastName(),
+                        record.getRecordDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+                    )
+                );
+            }
+        }
+
         log.info("updateRecordStatus[2]: Updating status from {} to {}", record.getRecordStatus(), newStatus);
         record.setRecordStatus(RecordStatus.valueOf(newStatus));
         
@@ -162,6 +205,11 @@ public class RecordServiceImpl implements RecordService {
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(23, 59, 59);
         return recordRepository.findByRecordDateBetween(startOfDay, endOfDay);
+    }
+
+    @Override
+    public List<Record> getRecordsBetweenDates(LocalDateTime start, LocalDateTime end) {
+        return recordRepository.findByRecordDateBetween(start, end);
     }
 
     // @Override

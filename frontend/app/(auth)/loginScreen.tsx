@@ -54,37 +54,14 @@ const LoginScreen = ({}) => {
           ));
 
         // Получение данных о текущем пользователе
-        const userResponse = await authProvider.get<{
-          id: string;
-          email: string;
-          firstName: string;
-          lastName: string;
-          role: string;
-          phoneNumber?: string;
-          birthday?: string;
-          city?: string;
-          country?: string;
-          gender?: string;
-          description?: string;
-          avatarUrl?: string;
-        }>(`${API_ADDRESS}users/currentUser`);
+        const userResponse = await authProvider.get(
+          `${API_ADDRESS}users/currentUser`
+        );
 
         // Сохранение роли пользователя
         if (userResponse.status === 200) {
-          const userData = User.fromJSON({
-            id: userResponse.data.id,
-            email: userResponse.data.email,
-            firstName: userResponse.data.firstName,
-            lastName: userResponse.data.lastName,
-            phoneNumber: userResponse.data.phoneNumber || "",
-            birthday: userResponse.data.birthday || "",
-            city: userResponse.data.city || "",
-            country: userResponse.data.country || "",
-            gender: userResponse.data.gender || "",
-            role: userResponse.data.role,
-            description: userResponse.data.description || "",
-            avatarUrl: userResponse.data.avatarUrl || "",
-          });
+          const userData = User.fromJSON(userResponse.data);
+          console.log("USERDATA after auth ", userData);
 
           await tokenService.saveUser(userData);
           await tokenService.saveRole(userResponse.data.role);
