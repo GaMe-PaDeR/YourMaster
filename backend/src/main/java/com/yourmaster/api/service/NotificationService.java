@@ -3,6 +3,7 @@ package com.yourmaster.api.service;
 import com.yourmaster.api.model.Notification;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.model.Record;
+import com.yourmaster.api.model.RescheduleRequest;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,4 +22,6 @@ public interface NotificationService {
     void deleteNotification(UUID notificationId, UUID userId);
     void clearAllNotifications(UUID userId);
     void markAllAsRead(UUID userId);
+    void sendRescheduleRequestNotification(User recipient, RescheduleRequest request);
+    void sendRescheduleResponseNotification(User recipient, RescheduleRequest request);
 }

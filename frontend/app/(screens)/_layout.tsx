@@ -41,6 +41,14 @@ export default function ScreensLayout() {
         name="editService"
         options={{ headerShown: true, title: "Редактирование услуги" }}
       />
+      <Stack.Screen
+        name="NotificationsScreen"
+        options={{ headerShown: true, title: "Уведомления" }}
+      />
+      <Stack.Screen
+        name="RescheduleRequestsScreen"
+        options={{ headerShown: true, title: "Запросы на перенос" }}
+      />
     </Stack>
   );
 }

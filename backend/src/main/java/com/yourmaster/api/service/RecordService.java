@@ -30,4 +30,9 @@ public interface RecordService {
     List<Record> getRecordsByDate(LocalDate date);
 
     List<Record> getRecordsBetweenDates(LocalDateTime start, LocalDateTime end);
+
+    Record rescheduleRecord(UUID recordId, LocalDateTime newDateTime);
+
+    void processRescheduleRequest(UUID requestId, boolean accepted);
+
 }

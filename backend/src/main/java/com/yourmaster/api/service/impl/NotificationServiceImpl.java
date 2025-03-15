@@ -1,6 +1,8 @@
 package com.yourmaster.api.service.impl;
 
 import com.yourmaster.api.dto.ChatNotificationDto;
+import com.yourmaster.api.enums.NotificationType;
+import com.yourmaster.api.enums.RescheduleStatus;
 import com.yourmaster.api.model.Notification;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.repository.NotificationRepository;
@@ -20,6 +22,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import com.yourmaster.api.exception.ResourceNotFoundException;
+import com.yourmaster.api.model.RescheduleRequest;
+import com.yourmaster.api.enums.NotificationType;
 
 @Service
 @RequiredArgsConstructor
@@ -176,5 +180,57 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void markAllAsRead(UUID userId) {
         notificationRepository.markAllAsReadForUser(userId);
+    }
+
+    @Override
+    public void sendRescheduleRequestNotification(User recipient, RescheduleRequest request) {
+        String title = "Запрос на перенос записи";
+        String message = String.format("Запрос на перенос записи на %s %s",
+                request.getNewDateTime().toLocalDate(),
+                request.getNewDateTime().toLocalTime());
+        
+        Notification notification = new Notification();
+        notification.setUser(recipient);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setType(NotificationType.RESCHEDULE_REQUEST);
+        notification.setRelatedId(request.getId().toString());
+        
+        notificationRepository.save(notification);
+        
+        // Отправка push-уведомления
+        if (recipient.getPushToken() != null) {
+            expoNotificationService.sendNotification(
+                recipient.getPushToken(),
+                title,
+                message
+            );
+        }
+    }
+
+    @Override
+    public void sendRescheduleResponseNotification(User recipient, RescheduleRequest request) {
+        String title = "Ответ на перенос записи";
+        String status = request.getStatus() == RescheduleStatus.ACCEPTED ?
+                "принят" : "отклонен";
+        String message = String.format("Ваш запрос на перенос записи %s", status);
+        
+        Notification notification = new Notification();
+        notification.setTitle(title);
+        notification.setUser(recipient);
+        notification.setMessage(message);
+        notification.setType(NotificationType.RESCHEDULE_RESPONSE);
+        notification.setRelatedId(request.getId().toString());
+        
+        notificationRepository.save(notification);
+        
+        // Отправка push-уведомления
+        if (recipient.getPushToken() != null) {
+            expoNotificationService.sendNotification(
+                recipient.getPushToken(),
+                "Ответ на запрос переноса",
+                message
+            );
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.yourmaster.api.model;
 
+import com.yourmaster.api.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,4 +38,9 @@ public class Notification {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    private NotificationType type;
+
+    private String relatedId; // ID связанной сущности (например, запроса на перенос)
 } 

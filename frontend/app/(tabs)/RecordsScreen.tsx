@@ -165,27 +165,39 @@ const RecordsScreen = () => {
   }));
 
   return (
-    <SectionList
-      sections={sections}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <View style={styles.recordItem}>
-          <RecordSmall
-            record={item}
-            onReschedule={handleReschedule}
-            onCancel={handleCancel}
-            onMessageMaster={handleStartChat}
-            onStatusChange={handleStatusChange}
-            userRole={userRole}
-          />
-        </View>
-      )}
-      renderSectionHeader={({ section: { title } }) => (
-        <View className="bg-gray px-4 py-2">
-          <Text className="text-lg font-semibold">{title}</Text>
-        </View>
-      )}
-    />
+    <View className="flex-1">
+      <View className="flex-row justify-between p-4 bg-white border-b border-gray-200">
+        <Text className="text-xl font-bold">Мои записи</Text>
+        <TouchableOpacity
+          onPress={() => router.push("../(screens)/RescheduleRequestsScreen")}
+          className="bg-blue-500 px-4 py-2 rounded-lg"
+        >
+          <Text className="text-white">Запросы на перенос</Text>
+        </TouchableOpacity>
+      </View>
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.recordItem}>
+            <RecordSmall
+              record={item}
+              onReschedule={handleReschedule}
+              onCancel={handleCancel}
+              onMessageMaster={handleStartChat}
+              onStatusChange={handleStatusChange}
+              userRole={userRole}
+            />
+          </View>
+        )}
+        renderSectionHeader={({ section: { title } }) => (
+          <View className="bg-gray px-4 py-2">
+            <Text className="text-lg font-semibold">{title}</Text>
+          </View>
+        )}
+      />
+    </View>
   );
 };
 

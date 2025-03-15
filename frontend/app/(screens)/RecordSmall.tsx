@@ -120,6 +120,13 @@ const RecordSmall = ({
     }
   };
 
+  const handleReschedule = () => {
+    router.push({
+      pathname: "../(screens)/RescheduleScreen",
+      params: { recordId: record.id },
+    });
+  };
+
   return (
     <View className="bg-white p-5 m-3 mb-3 rounded-xl shadow-lg shadow-black/20">
       <View className="flex-row justify-between items-start mb-3">
@@ -222,7 +229,7 @@ const RecordSmall = ({
         <View className="mt-2 space-y-2">
           <TouchableOpacity
             className="flex-row items-center bg-blue-50 px-3 py-2 rounded-lg active:bg-blue-100"
-            onPress={() => onReschedule(record.id)}
+            onPress={handleReschedule}
           >
             <Ionicons
               name="calendar"

@@ -2,7 +2,8 @@ package com.yourmaster.api.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.yourmaster.api.Constants;
-import com.yourmaster.api.enums.TransferRequestStatus;
+import com.yourmaster.api.enums.RescheduleStatus;
+//import com.yourmaster.api.enums.TransferRequestStatus;
 import com.yourmaster.api.model.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -41,7 +42,7 @@ public class TransferRequest {
 
     @Enumerated(value = EnumType.STRING)
     @Column(name = "status")
-    private TransferRequestStatus status;
+    private RescheduleStatus status;
 
     @ManyToOne
     @JoinColumn(name = "old_record")

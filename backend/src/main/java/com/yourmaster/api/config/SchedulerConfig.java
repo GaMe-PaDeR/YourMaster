@@ -31,15 +31,23 @@ public class SchedulerConfig {
     @Autowired
     private UserService userService;
 
-    @Scheduled(cron = "0 0 20 * * ?") // Каждый день в 20:00
-    public void sendDailyReminders() {
+    @Scheduled(cron = "0 0 * * * *") // Каждый час
+    public void checkReminders() {
         setSecurityContext();
-
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
         LocalDateTime now = LocalDateTime.now();
 
-        // Напоминания для клиентов за 3 дня
-        LocalDate threeDaysLater = LocalDate.now().plusDays(3);
+        // Проверка напоминаний за 3 дня
+        check3DaysReminders(now);
+
+        // Проверка напоминаний за 1 день
+        check1DayReminders(now);
+
+        // Проверка напоминаний за 1 час
+        check1HourReminders(now);
+    }
+
+    private void check3DaysReminders(LocalDateTime now) {
+        LocalDate threeDaysLater = now.toLocalDate().plusDays(3);
         List<Record> clientRecords3Days = recordService.getRecordsByDate(threeDaysLater);
         clientRecords3Days.forEach(record -> {
             String message = String.format("Напоминание: через 3 дня в %s у вас запись на %s",
@@ -47,8 +55,10 @@ public class SchedulerConfig {
                 record.getService().getTitle());
             notificationService.sendReminderNotification(record.getClient().getId(), message);
         });
+    }
 
-        // Напоминания для клиентов за 1 день
+    private void check1DayReminders(LocalDateTime now) {
+        LocalDate tomorrow = now.toLocalDate().plusDays(1);
         List<Record> clientRecords1Day = recordService.getRecordsByDate(tomorrow);
         clientRecords1Day.forEach(record -> {
             String message = String.format("Напоминание: завтра в %s у вас запись на %s",
@@ -56,8 +66,9 @@ public class SchedulerConfig {
                 record.getService().getTitle());
             notificationService.sendReminderNotification(record.getClient().getId(), message);
         });
+    }
 
-        // Напоминания для клиентов за 1 час
+    private void check1HourReminders(LocalDateTime now) {
         List<Record> clientRecords1Hour = recordService.getRecordsBetweenDates(
             now.plusHours(1).minusMinutes(5), 
             now.plusHours(1).plusMinutes(5)
@@ -67,8 +78,14 @@ public class SchedulerConfig {
                 record.getService().getTitle());
             notificationService.sendReminderNotification(record.getClient().getId(), message);
         });
+    }
 
-        // Напоминания для мастеров
+    // Напоминания для мастеров (остаются ежедневно в 20:00)
+    @Scheduled(cron = "0 0 20 * * ?") // Каждый день в 20:00
+    public void sendMasterReminders() {
+        setSecurityContext();
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+
         List<Record> masterRecords = recordService.getRecordsByDate(tomorrow);
         masterRecords.forEach(record -> {
             String message = String.format("Завтра у вас запись с %s %s на %s в %s",

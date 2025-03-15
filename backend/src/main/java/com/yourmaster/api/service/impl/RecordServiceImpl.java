@@ -5,13 +5,16 @@ import com.yourmaster.api.config.SchedulerConfig;
 import com.yourmaster.api.controller.NotificationController;
 import com.yourmaster.api.dto.RecordDto;
 import com.yourmaster.api.enums.RecordStatus;
+import com.yourmaster.api.enums.RescheduleStatus;
 import com.yourmaster.api.enums.Role;
 import com.yourmaster.api.exception.ApiException;
 import com.yourmaster.api.exception.ResourceNotFoundException;
 import com.yourmaster.api.model.Availability;
 import com.yourmaster.api.model.Record;
+import com.yourmaster.api.model.RescheduleRequest;
 import com.yourmaster.api.model.User;
 import com.yourmaster.api.repository.RecordRepository;
+import com.yourmaster.api.repository.RescheduleRequestRepository;
 import com.yourmaster.api.service.RecordService;
 import com.yourmaster.api.service.ServiceService;
 import com.yourmaster.api.service.UserService;
@@ -44,6 +47,19 @@ public class RecordServiceImpl implements RecordService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private RescheduleRequestRepository rescheduleRequestRepository;
+
+    /**
+     * Create a new record. The record is scheduled for the given date and time, and the master is set to the recipient
+     * of the request. The method first checks that the date and time are valid, and then checks that the master is
+     * available at that time. If any of these checks fail, an ApiException is thrown. If the record is successfully
+     * created, the method sends a notification to the master about the new record.
+     *
+     * @param recordDto the record to create
+     * @return the created record
+     * @throws ApiException if the date and time are invalid, or if the master is not available at that time
+     */
     @Override
     public Record createRecord(RecordDto recordDto) {
         try {
@@ -212,27 +228,78 @@ public class RecordServiceImpl implements RecordService {
         return recordRepository.findByRecordDateBetween(start, end);
     }
 
-    // @Override
-    // public Record rescheduleRecord(UUID recordId, LocalDateTime newDateTime) {
-    //     Record record = getRecordById(recordId);
+    @Override
+    public Record rescheduleRecord(UUID recordId, LocalDateTime newDateTime) {
+        Record record = getRecordById(recordId);
+        User currentUser = userService.getCurrentUser();
         
-    //     if (newDateTime.isBefore(LocalDateTime.now())) {
-    //         throw new ApiException(HttpStatus.BAD_REQUEST, "Невозможно перенести на прошедшее время");
-    //     }
+        // Проверка прав на перенос
+        if (!record.getClient().getId().equals(currentUser.getId()) && 
+            !record.getMaster().getId().equals(currentUser.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Нет прав на перенос записи");
+        }
+
+        if (newDateTime.isBefore(LocalDateTime.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Невозможно перенести на прошедшее время");
+        }
         
-    //     // Проверка доступности нового времени
-    //     com.yourmaster.api.model.Service service = record.getService();
-    //     Availability availability = service.getAvailability().stream()
-    //         .filter(av -> av.getDate().isEqual(newDateTime.toLocalDate()))
-    //         .findFirst()
-    //         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Дата недоступна"));
+        // Проверка доступности нового времени
+        com.yourmaster.api.model.Service service = record.getService();
+        Availability availability = service.getAvailability().stream()
+            .filter(av -> av.getDate().isEqual(newDateTime.toLocalDate()))
+            .findFirst()
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Дата недоступна"));
         
-    //     String timeKey = newDateTime.toLocalTime().toString().substring(0, 5);
-    //     if (!availability.getTimeSlotsMap().getOrDefault(timeKey, false)) {
-    //         throw new ApiException(HttpStatus.BAD_REQUEST, "Временной слот недоступен");
-    //     }
+        String timeKey = newDateTime.toLocalTime().toString().substring(0, 5);
+        if (!availability.getTimeSlotsMap().getOrDefault(timeKey, false)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Временной слот недоступен");
+        }
         
-    //     record.setRecordDate(newDateTime);
-    //     return recordRepository.save(record);
-    // }
+        // Создаем запрос на перенос
+        RescheduleRequest request = new RescheduleRequest();
+        request.setRecord(record);
+        request.setNewDateTime(newDateTime);
+        request.setRequester(currentUser);
+        request.setStatus(RescheduleStatus.PENDING);
+        
+        RescheduleRequest savedRequest = rescheduleRequestRepository.save(request);
+        
+        // Отправляем уведомление
+        User recipient = currentUser.getId().equals(record.getClient().getId()) ? 
+            record.getMaster() : record.getClient();
+            
+        notificationService.sendRescheduleRequestNotification(
+            recipient,
+            savedRequest
+        );
+        
+        return record;
+    }
+
+    @Override
+    public void processRescheduleRequest(UUID requestId, boolean accepted) {
+        RescheduleRequest request = rescheduleRequestRepository.findById(requestId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Запрос на перенос не найден"));
+            
+        if (request.getStatus() != RescheduleStatus.PENDING) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Запрос уже обработан");
+        }
+        
+        if (accepted) {
+            Record record = request.getRecord();
+            record.setRecordDate(request.getNewDateTime());
+            recordRepository.save(record);
+            request.setStatus(RescheduleStatus.ACCEPTED);
+        } else {
+            request.setStatus(RescheduleStatus.REJECTED);
+        }
+        
+        rescheduleRequestRepository.save(request);
+        
+        // Уведомляем инициатора
+        notificationService.sendRescheduleResponseNotification(
+            request.getRequester(),
+            request
+        );
+    }
 }
